@@ -1,17 +1,17 @@
 //authSlice.js
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // Async thunks for API calls
 export const loginUser = createAsyncThunk(
-  'auth/loginUser',
+  "auth/loginUser",
   async (credentials, { rejectWithValue }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/admin/login`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(credentials),
       });
@@ -19,67 +19,77 @@ export const loginUser = createAsyncThunk(
       const data = await response.json();
 
       if (!response.ok) {
-        return rejectWithValue(data.message || 'Login failed');
+        return rejectWithValue(data.message || "Login failed");
       }
 
       // Store token in localStorage
       if (data.data?.accessToken) {
-        localStorage.setItem('adminToken', data.data.accessToken);
+        localStorage.setItem("adminToken", data.data.accessToken);
       }
 
       return data.data;
     } catch (error) {
-      return rejectWithValue(error.message || 'Network error occurred');
+      return rejectWithValue(error.message || "Network error occurred");
     }
   }
 );
 
 export const fetchProfile = createAsyncThunk(
-  'auth/fetchProfile',
+  "auth/fetchProfile",
   async (_, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth.token || localStorage.getItem('adminToken');
-      
+      const token = getState().auth.token || localStorage.getItem("adminToken");
+
       if (!token) {
-        return rejectWithValue('No authentication token found');
+        return rejectWithValue({
+          message: "No authentication token found",
+          status: 401,
+        });
       }
 
       const response = await fetch(`${API_BASE_URL}/admin/profile`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        return rejectWithValue(data.message || 'Failed to fetch profile');
+        // Return both message and status code
+        return rejectWithValue({
+          message: data.message || "Failed to fetch profile",
+          status: response.status,
+        });
       }
 
       return data.data;
     } catch (error) {
-      return rejectWithValue(error.message || 'Network error occurred');
+      return rejectWithValue({
+        message: error.message || "Network error occurred",
+        status: null,
+      });
     }
   }
 );
 
 export const updateProfile = createAsyncThunk(
-  'auth/updateProfile',
+  "auth/updateProfile",
   async (profileData, { rejectWithValue, getState }) => {
     try {
-      const token = getState().auth.token || localStorage.getItem('adminToken');
-      
+      const token = getState().auth.token || localStorage.getItem("adminToken");
+
       if (!token) {
-        return rejectWithValue('No authentication token found');
+        return rejectWithValue("No authentication token found");
       }
 
       const response = await fetch(`${API_BASE_URL}/admin/profile`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(profileData),
       });
@@ -87,24 +97,24 @@ export const updateProfile = createAsyncThunk(
       const data = await response.json();
 
       if (!response.ok) {
-        return rejectWithValue(data.message || 'Failed to update profile');
+        return rejectWithValue(data.message || "Failed to update profile");
       }
 
       return data.data;
     } catch (error) {
-      return rejectWithValue(error.message || 'Network error occurred');
+      return rejectWithValue(error.message || "Network error occurred");
     }
   }
 );
 
 const authSlice = createSlice({
-  name: 'auth',
+  name: "auth",
   initialState: {
     user: null,
-    token: localStorage.getItem('adminToken') || null,
+    token: localStorage.getItem("adminToken") || null,
     isLoading: false,
     error: null,
-    isAuthenticated: !!localStorage.getItem('adminToken'),
+    isAuthenticated: !!localStorage.getItem("adminToken"),
   },
   reducers: {
     logout: (state) => {
@@ -112,7 +122,7 @@ const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
       state.error = null;
-      localStorage.removeItem('adminToken');
+      localStorage.removeItem("adminToken");
     },
     clearError: (state) => {
       state.error = null;
@@ -122,7 +132,7 @@ const authSlice = createSlice({
       state.user = user;
       state.token = accessToken;
       state.isAuthenticated = true;
-      localStorage.setItem('adminToken', accessToken);
+      localStorage.setItem("adminToken", accessToken);
     },
   },
   extraReducers: (builder) => {
@@ -157,13 +167,15 @@ const authSlice = createSlice({
       })
       .addCase(fetchProfile.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload;
-        // If token is invalid, logout user
-        if (action.payload.includes('token') || action.payload.includes('auth')) {
+        state.error = action.payload?.message || action.payload;
+
+        // Clear authentication on any 401/403 error OR if no token found
+        const status = action.payload?.status;
+        if (status===400 || status === 401 || status === 403 || !state.token) {
           state.user = null;
           state.token = null;
           state.isAuthenticated = false;
-          localStorage.removeItem('adminToken');
+          localStorage.removeItem("adminToken");
         }
       })
       // Update profile cases

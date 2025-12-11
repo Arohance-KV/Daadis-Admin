@@ -1,7 +1,8 @@
 //app.jsx
-import React from 'react';
+import React, {useEffect} from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Provider, useSelector } from 'react-redux';
+import { Provider, useSelector, useDispatch } from 'react-redux';
+import { fetchProfile, logout } from './redux/slices/authSlice';
 import { store } from './redux/store';
 import Navbar from './components/Navbar';
 import Topbar from './components/Topbar';
@@ -18,8 +19,45 @@ import Manufacturer from './pages/Manufacturer';
 import './App.css';
 
 const AppContent = () => {
+  const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
 
+  // Add this useEffect to validate token on app load
+  useEffect(() => {
+    if (isAuthenticated) {
+      dispatch(fetchProfile())
+        .unwrap()
+        .catch((error) => {
+          // Automatically logout if profile fetch fails (expired/invalid token)
+          console.error('Token validation failed:', error);
+          dispatch(logout());
+        });
+    }
+  }, []); // Run only once on mount
+
+  // Listen for localStorage changes (for manual token removal)
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const token = localStorage.getItem('adminToken');
+      
+      // If token was removed but Redux still thinks user is authenticated
+      if (!token && isAuthenticated) {
+        dispatch(logout());
+      }
+    };
+
+    // Listen for changes from other tabs
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Listen for changes in same tab (manual removal via DevTools)
+    window.addEventListener('focus', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleStorageChange);
+    };
+  }, [isAuthenticated, dispatch]);
+  
   return (
     <div className="App">
       {isAuthenticated ? (
