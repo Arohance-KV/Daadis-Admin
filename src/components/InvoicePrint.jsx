@@ -1,6 +1,76 @@
 import React, { useState, useEffect } from 'react';
+import { productsAPI, categoriesAPI } from '../utils/api';
 
 const InvoicePrint = ({ order, invoiceNumber}) => {
+  const [productsData, setProductsData] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  // Fetch product and category details for HSN codes
+  useEffect(() => {
+    const fetchProductDetails = async () => {
+      try {
+        const productDataMap = {};
+        
+        // Fetch details for each product in the order
+        for (const item of order.items) {
+          const productId = item.product || item.productId;
+          if (productId) {
+            try {
+              const response = await productsAPI.getProductById(productId);
+              const product = response.data;
+              console.log('Product details:', product);
+              
+              // Fetch category details for HSN code
+              let hsn = null;
+              const categoryId = product.category || product.categoryId;
+              console.log('Category ID:', categoryId);
+              if (categoryId) {
+                try {
+                  const categoryResponse = await categoriesAPI.getCategoryById(categoryId);
+                  console.log('Category details:', categoryResponse.data);
+                  // Try different possible field names for HSN
+                  hsn = categoryResponse.data?.hsn || categoryResponse.data?.HSN || categoryResponse.data?.hsnCode || null;
+                  console.log('HSN found:', hsn);
+                } catch (error) {
+                  console.error('Could not fetch category:', error);
+                }
+              } else {
+                console.log('No category ID found in product');
+              }
+              
+              productDataMap[productId] = {
+                hsn: hsn,
+                product: product
+              };
+            } catch (error) {
+              console.error(`Could not fetch product ${productId}:`, error);
+            }
+          }
+        }
+        
+        setProductsData(productDataMap);
+      } catch (error) {
+        console.error('Error fetching product details:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (order.items && order.items.length > 0) {
+      fetchProductDetails();
+    } else {
+      setLoading(false);
+    }
+  }, [order]);
+
+  // Calculate tax based on HSN code
+  const calculateTax = (unitPrice, hsn) => {
+    if (hsn === '21069099') {
+      return (unitPrice * 0.05); // 5% tax
+    }
+    return 0; // 0% for other HSN codes
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
       day: '2-digit',
@@ -160,22 +230,31 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
               </tr>
             </thead>
             <tbody>
-              {order.items.map((item, index) => (
-                <tr key={index}>
-                  <td className="border border-gray-800 px-2 py-3 text-center">{index + 1}</td>
-                  <td className="border border-gray-800 px-2 py-3">
-                    <div className="font-semibold">{item.productName}</div>
-                    <div className="text-gray-600">SKU: {item.productCode}</div>
-                  </td>
-                  <td className="border border-gray-800 px-2 py-3 text-center">19554001</td>
-                  <td className="border border-gray-800 px-2 py-3 text-center">{item.quantity}</td>
-                  <td className="border border-gray-800 px-2 py-3 text-right">Rs. {item.priceAtPurchase.toFixed(2)}</td>
-                  <td className="border border-gray-800 px-2 py-3 text-right">0.00</td>
-                  <td className="border border-gray-800 px-2 py-3 text-right">{item.itemTotal.toFixed(2)}</td>
-                  <td className="border border-gray-800 px-2 py-3 text-center">0.00 | 0.00</td>
-                  <td className="border border-gray-800 px-2 py-3 text-right">{item.itemTotal.toFixed(2)}</td>
-                </tr>
-              ))}
+              {order.items.map((item, index) => {
+                const productId = item.product || item.productId;
+                const productInfo = productsData[productId];
+                const hsn = productInfo?.hsn || 'N/A';
+                const unitTax = calculateTax(item.priceAtPurchase, hsn);
+                const taxableValue = item.priceAtPurchase - unitTax;
+                const totalWithTax = item.itemTotal;
+                
+                return (
+                  <tr key={index}>
+                    <td className="border border-gray-800 px-2 py-3 text-center">{index + 1}</td>
+                    <td className="border border-gray-800 px-2 py-3">
+                      <div className="font-semibold">{item.productName}</div>
+                      <div className="text-gray-600">SKU: {item.productCode}</div>
+                    </td>
+                    <td className="border border-gray-800 px-2 py-3 text-center">{hsn}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center">{item.quantity}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-right">Rs. {item.priceAtPurchase.toFixed(2)}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-right">Rs. {unitTax.toFixed(2)}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-right">Rs. {taxableValue.toFixed(2)}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center">{unitTax.toFixed(2)} | {hsn === '21069099' ? '5.00' : '0.00'}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-right">Rs. {totalWithTax.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
