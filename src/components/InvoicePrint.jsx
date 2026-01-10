@@ -66,7 +66,7 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
   // Calculate tax based on HSN code
   const calculateTax = (unitPrice, hsn) => {
     if (hsn === '21069099') {
-      return (unitPrice * 0.05); // 5% tax
+      return unitPrice - (unitPrice / 1.05);
     }
     return 0; // 0% for other HSN codes
   };
@@ -218,15 +218,14 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
           <table className="w-full border-collapse border border-gray-800 text-xs">
             <thead>
               <tr className="bg-gray-100">
-                <th className="border border-gray-800 px-2 py-2 text-left font-bold">S.NO.</th>
-                <th className="border border-gray-800 px-2 py-2 text-left font-bold">PRODUCT NAME</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold">HSN</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold">QTY</th>
-                <th className="border border-gray-800 px-2 py-2 text-right font-bold">UNIT PRICE</th>
-                <th className="border border-gray-800 px-2 py-2 text-right font-bold">UNIT DISCOUNT</th>
-                <th className="border border-gray-800 px-2 py-2 text-right font-bold">TAXABLE VALUE</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold">IGST<br/>(Value | %)</th>
-                <th className="border border-gray-800 px-2 py-2 text-right font-bold">TOTAL<br/>(Including GST)</th>
+                <th className="border border-gray-800 px-2 py-2 text-left font-bold">s.no</th>
+                <th className="border border-gray-800 px-2 py-2 text-left font-bold">product name</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold">hsn</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold">Qty</th>
+                <th className="border border-gray-800 px-2 py-2 text-right font-bold">Unit price</th>
+                <th className="border border-gray-800 px-2 py-2 text-right font-bold">Taxable value</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold">cgst/sgst (Igst %)</th>
+                <th className="border border-gray-800 px-2 py-2 text-right font-bold">Total (including tax)</th>
               </tr>
             </thead>
             <tbody>
@@ -248,7 +247,6 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
                     <td className="border border-gray-800 px-2 py-3 text-center">{hsn}</td>
                     <td className="border border-gray-800 px-2 py-3 text-center">{item.quantity}</td>
                     <td className="border border-gray-800 px-2 py-3 text-right">Rs. {item.priceAtPurchase.toFixed(2)}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-right">Rs. {unitTax.toFixed(2)}</td>
                     <td className="border border-gray-800 px-2 py-3 text-right">Rs. {taxableValue.toFixed(2)}</td>
                     <td className="border border-gray-800 px-2 py-3 text-center">{unitTax.toFixed(2)} | {hsn === '21069099' ? '5.00' : '0.00'}</td>
                     <td className="border border-gray-800 px-2 py-3 text-right">Rs. {totalWithTax.toFixed(2)}</td>
