@@ -27,7 +27,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 const Products = () => {
   const dispatch = useDispatch();
-  const { products, loading, error, pagination } = useSelector((state) => state.products);
+  const { products, loading, error, pagination } = useSelector(
+    (state) => state.products,
+  );
   const { categories } = useSelector((state) => state.categories);
 
   const [showModal, setShowModal] = useState(false);
@@ -51,21 +53,24 @@ const Products = () => {
     vegetarian: true,
     weight: { number: "", unit: "g" },
     dimensions: { l: "", b: "", h: "" },
+    quantityDiscounts: [
+      { minQuantity: 1, discountType: "percentage", discountValue: 5 },
+    ],
   });
 
   // Image preview state
   const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   // Handle navigation from Dashboard
-useEffect(() => {
-  if (location.state?.openAddModal) {
-    handleOpenModal();
-    // Clear the state to prevent reopening on refresh
-    navigate(location.pathname, { replace: true });
-  }
-}, [location.state, navigate, location.pathname]);
+  useEffect(() => {
+    if (location.state?.openAddModal) {
+      handleOpenModal();
+      // Clear the state to prevent reopening on refresh
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.state, navigate, location.pathname]);
 
   useEffect(() => {
     dispatch(fetchProducts({ page: 1, limit: 12 }));
@@ -82,7 +87,12 @@ useEffect(() => {
     if (filterCategory) searchParams.category = filterCategory;
 
     if (filterCategory) {
-      dispatch(fetchProductsByCategory({ categoryId: filterCategory, params: searchParams }));
+      dispatch(
+        fetchProductsByCategory({
+          categoryId: filterCategory,
+          params: searchParams,
+        }),
+      );
     } else {
       dispatch(fetchProducts(searchParams));
     }
@@ -101,7 +111,9 @@ useEffect(() => {
         <div className="flex items-start">
           <ExclamationTriangleIcon className="w-5 h-5 text-red-400 mt-0.5 mr-3" />
           <div className="flex-1">
-            <h3 className="text-red-800 font-medium">Error {status && `(${status})`}</h3>
+            <h3 className="text-red-800 font-medium">
+              Error {status && `(${status})`}
+            </h3>
             <p className="text-red-700 mt-1">{message}</p>
             {details && (
               <div className="mt-2">
@@ -145,6 +157,9 @@ useEffect(() => {
       vegetarian: true,
       weight: { number: "", unit: "g" },
       dimensions: { l: "", b: "", h: "" },
+      quantityDiscounts: [
+        { minQuantity: 1, discountType: "percentage", discountValue: 5 },
+      ],
     });
     setImagePreviewUrls([]);
   };
@@ -163,7 +178,8 @@ useEffect(() => {
         newImages: [],
         imagesToDelete: [],
         tags: product.tags?.length > 0 ? product.tags : [""],
-        vegetarian: product.vegetarian !== undefined ? product.vegetarian : true,
+        vegetarian:
+          product.vegetarian !== undefined ? product.vegetarian : true,
         weight: {
           number: product.weight?.number || "",
           unit: product.weight?.unit || "g",
@@ -173,6 +189,16 @@ useEffect(() => {
           b: product.dimensions?.b || "",
           h: product.dimensions?.h || "",
         },
+        quantityDiscounts:
+          product.quantityDiscounts?.length > 0
+            ? product.quantityDiscounts
+            : [
+                {
+                  minQuantity: 1,
+                  discountType: "percentage",
+                  discountValue: 5,
+                },
+              ],
       });
     } else {
       setEditingProduct(null);
@@ -227,15 +253,15 @@ useEffect(() => {
   // Enhanced image handling
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
-    
+
     // Create preview URLs for new images
-    const newPreviewUrls = files.map(file => URL.createObjectURL(file));
-    
-    setFormData((prev) => ({ 
-      ...prev, 
-      newImages: [...prev.newImages, ...files] 
+    const newPreviewUrls = files.map((file) => URL.createObjectURL(file));
+
+    setFormData((prev) => ({
+      ...prev,
+      newImages: [...prev.newImages, ...files],
     }));
-    
+
     setImagePreviewUrls((prev) => [...prev, ...newPreviewUrls]);
   };
 
@@ -244,7 +270,7 @@ useEffect(() => {
     setFormData((prev) => ({
       ...prev,
       existingImages: prev.existingImages.filter((_, i) => i !== index),
-      imagesToDelete: [...prev.imagesToDelete, imageUrl]
+      imagesToDelete: [...prev.imagesToDelete, imageUrl],
     }));
   };
 
@@ -252,27 +278,27 @@ useEffect(() => {
   const removeNewImage = (index) => {
     // Revoke the preview URL to free memory
     URL.revokeObjectURL(imagePreviewUrls[index]);
-    
+
     setFormData((prev) => ({
       ...prev,
-      newImages: prev.newImages.filter((_, i) => i !== index)
+      newImages: prev.newImages.filter((_, i) => i !== index),
     }));
-    
+
     setImagePreviewUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Clear all images
   const clearAllImages = () => {
     // Revoke all preview URLs
-    imagePreviewUrls.forEach(url => URL.revokeObjectURL(url));
-    
+    imagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+
     setFormData((prev) => ({
       ...prev,
       newImages: [],
       imagesToDelete: [...prev.imagesToDelete, ...prev.existingImages],
-      existingImages: []
+      existingImages: [],
     }));
-    
+
     setImagePreviewUrls([]);
   };
 
@@ -294,10 +320,13 @@ useEffect(() => {
           weight: formData.weight,
           dimensions: formData.dimensions,
           existingImages: formData.existingImages, // Keep as array
+          quantityDiscounts: formData.quantityDiscounts,
           images: formData.newImages, // New images to upload
         };
 
-        await dispatch(updateProduct({ id: editingProduct._id, productData })).unwrap();
+        await dispatch(
+          updateProduct({ id: editingProduct._id, productData }),
+        ).unwrap();
       } else {
         // For create, pass the complete form data structure
         const productData = {
@@ -311,9 +340,10 @@ useEffect(() => {
           imageFiles: formData.newImages, // All selected images
           weight: formData.weight,
           dimensions: formData.dimensions,
-          tags: formData.tags.filter((tag) => tag.trim() !== "")
+          tags: formData.tags.filter((tag) => tag.trim() !== ""),
+          quantityDiscounts: formData.quantityDiscounts,
         };
-        
+
         await dispatch(createProduct(productData)).unwrap();
       }
       handleCloseModal();
@@ -411,7 +441,10 @@ useEffect(() => {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 p-6">
               {products.map((product) => (
-                <div key={product._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div
+                  key={product._id}
+                  className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                >
                   <div className="aspect-square bg-gray-100 rounded-lg mb-4 overflow-hidden relative">
                     {product.images && product.images.length > 0 ? (
                       <>
@@ -432,17 +465,34 @@ useEffect(() => {
                       </div>
                     )}
                   </div>
-                  
-                  <h3 className="font-semibold text-gray-900 mb-1">{product.name}</h3>
-                  <p className="text-sm text-gray-600 mb-2">Code: {product.code}</p>
+
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    {product.name}
+                  </h3>
                   <p className="text-sm text-gray-600 mb-2">
-                    Category: {getCategoryName(product.category?._id || product.category)}
+                    Code: {product.code}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Category:{" "}
+                    {getCategoryName(product.category?._id || product.category)}
                   </p>
                   <div className="flex justify-between items-center mb-3">
-                    <span className="text-lg font-semibold text-green-600">₹{product.price}</span>
-                    <span className="text-sm text-gray-600">Stock: {product.stock}</span>
+                    <span className="text-lg font-semibold text-green-600">
+                      ₹{product.price}
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      Stock: {product.stock}
+                    </span>
                   </div>
-                  
+                  {/* Inside product card, after price */}
+                  {product.quantityDiscounts &&
+                    product.quantityDiscounts.length > 0 && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Bulk discounts available from{" "}
+                        {product.quantityDiscounts[0].minQuantity} units
+                      </p>
+                    )}
+
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleOpenModal(product)}
@@ -469,7 +519,11 @@ useEffect(() => {
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-700">
                     Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                    {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} products
+                    {Math.min(
+                      pagination.page * pagination.limit,
+                      pagination.total,
+                    )}{" "}
+                    of {pagination.total} products
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -479,7 +533,10 @@ useEffect(() => {
                     >
                       <ChevronLeftIcon className="w-4 h-4" />
                     </button>
-                    {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
+                    {Array.from(
+                      { length: pagination.pages },
+                      (_, i) => i + 1,
+                    ).map((page) => (
                       <button
                         key={page}
                         onClick={() => handlePageChange(page)}
@@ -612,7 +669,9 @@ useEffect(() => {
                         onChange={handleInputChange}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="ml-2 text-sm text-gray-700">Vegetarian</span>
+                      <span className="ml-2 text-sm text-gray-700">
+                        Vegetarian
+                      </span>
                     </label>
                   </div>
                 </div>
@@ -632,7 +691,9 @@ useEffect(() => {
 
                 {/* Weight Section */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Weight</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Weight
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="number"
@@ -693,9 +754,161 @@ useEffect(() => {
                   </div>
                 </div>
 
+                {/* Quantity Discounts Section */}
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Quantity Discounts
+                    <span className="text-gray-500 font-normal text-xs ml-2">
+                      (Set discounts for bulk purchases)
+                    </span>
+                  </label>
+                  <div className="space-y-3">
+                    {formData.quantityDiscounts.map((discount, index) => (
+                      <div
+                        key={index}
+                        className="flex gap-3 items-center bg-gray-50 p-3 rounded-lg"
+                      >
+                        {/* Min Quantity */}
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-600 mb-1">
+                            Min Qty
+                          </label>
+                          <input
+                            type="number"
+                            placeholder="e.g., 10"
+                            value={discount.minQuantity}
+                            onChange={(e) => {
+                              const newDiscounts = [
+                                ...formData.quantityDiscounts,
+                              ];
+                              newDiscounts[index].minQuantity =
+                                parseInt(e.target.value) || 0;
+                              setFormData({
+                                ...formData,
+                                quantityDiscounts: newDiscounts,
+                              });
+                            }}
+                            className="w-full px-3 py-2 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm"
+                            min="1"
+                          />
+                        </div>
+
+                        {/* Discount Type */}
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-600 mb-1">
+                            Type
+                          </label>
+                          <select
+                            value={discount.discountType}
+                            onChange={(e) => {
+                              const newDiscounts = [
+                                ...formData.quantityDiscounts,
+                              ];
+                              newDiscounts[index].discountType = e.target.value;
+                              setFormData({
+                                ...formData,
+                                quantityDiscounts: newDiscounts,
+                              });
+                            }}
+                            className="w-full px-3 py-2 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm"
+                          >
+                            <option value="percentage">Percentage (%)</option>
+                            <option value="fixed">Fixed (₹)</option>
+                          </select>
+                        </div>
+
+                        {/* Discount Value */}
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-600 mb-1">
+                            Value{" "}
+                            {discount.discountType === "percentage"
+                              ? "(%)"
+                              : "(₹)"}
+                          </label>
+                          <input
+                            type="number"
+                            placeholder={
+                              discount.discountType === "percentage"
+                                ? "e.g., 10"
+                                : "e.g., 100"
+                            }
+                            value={discount.discountValue}
+                            onChange={(e) => {
+                              const newDiscounts = [
+                                ...formData.quantityDiscounts,
+                              ];
+                              newDiscounts[index].discountValue =
+                                parseFloat(e.target.value) || 0;
+                              setFormData({
+                                ...formData,
+                                quantityDiscounts: newDiscounts,
+                              });
+                            }}
+                            className="w-full px-3 py-2 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm"
+                            min="0"
+                            step={
+                              discount.discountType === "percentage"
+                                ? "1"
+                                : "0.01"
+                            }
+                            max={
+                              discount.discountType === "percentage"
+                                ? "100"
+                                : undefined
+                            }
+                          />
+                        </div>
+
+                        {/* Remove Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newDiscounts =
+                              formData.quantityDiscounts.filter(
+                                (_, i) => i !== index,
+                              );
+                            setFormData({
+                              ...formData,
+                              quantityDiscounts: newDiscounts,
+                            });
+                          }}
+                          className="mt-5 p-2 rounded-lg transition-colors text-red-600 hover:bg-red-50 hover:text-red-700"
+                          title="Remove discount tier"
+                        >
+                          <XMarkIcon className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Add Discount Tier Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          quantityDiscounts: [
+                            ...formData.quantityDiscounts,
+                            {
+                              minQuantity: 1,
+                              discountType: "percentage",
+                              discountValue: 0,
+                            },
+                          ],
+                        });
+                      }}
+                      className="w-full py-3 px-4 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-green-500 hover:text-green-600 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      Add Discount Tier
+                    </button>
+                  </div>
+                </div>
+
                 {/* Tags Section */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tags
+                  </label>
                   {formData.tags.map((tag, index) => (
                     <div key={index} className="flex gap-2 mb-2">
                       <input
@@ -731,7 +944,8 @@ useEffect(() => {
                     <label className="block text-sm font-medium text-gray-700">
                       Product Images
                     </label>
-                    {(formData.existingImages.length > 0 || formData.newImages.length > 0) && (
+                    {(formData.existingImages.length > 0 ||
+                      formData.newImages.length > 0) && (
                       <button
                         type="button"
                         onClick={clearAllImages}
@@ -752,17 +966,23 @@ useEffect(() => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="text-sm text-gray-500 mt-1">
-                      Select multiple images. Supported formats: JPG, PNG, GIF, WebP
+                      Select multiple images. Supported formats: JPG, PNG, GIF,
+                      WebP
                     </p>
                   </div>
 
                   {/* Existing Images (for edit mode) */}
                   {editingProduct && formData.existingImages.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Current Images</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">
+                        Current Images
+                      </h4>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                         {formData.existingImages.map((imageUrl, index) => (
-                          <div key={`existing-${index}`} className="relative group">
+                          <div
+                            key={`existing-${index}`}
+                            className="relative group"
+                          >
                             <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
                               <img
                                 src={imageUrl}
@@ -772,7 +992,9 @@ useEffect(() => {
                             </div>
                             <button
                               type="button"
-                              onClick={() => removeExistingImage(imageUrl, index)}
+                              onClick={() =>
+                                removeExistingImage(imageUrl, index)
+                              }
                               className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               ×
@@ -828,8 +1050,13 @@ useEffect(() => {
                       <div className="text-sm text-blue-700">
                         <p className="font-medium">Image Upload Tips:</p>
                         <ul className="mt-1 space-y-1 text-xs">
-                          <li>• Upload multiple images to showcase your product from different angles</li>
-                          <li>• First image will be used as the main product image</li>
+                          <li>
+                            • Upload multiple images to showcase your product
+                            from different angles
+                          </li>
+                          <li>
+                            • First image will be used as the main product image
+                          </li>
                           <li>• Recommended size: 800x800px or larger</li>
                           <li>• Maximum file size: 5MB per image</li>
                         </ul>
@@ -854,10 +1081,13 @@ useEffect(() => {
                     {loading && (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     )}
-                    {loading 
-                      ? (editingProduct ? "Updating..." : "Creating...") 
-                      : (editingProduct ? "Update Product" : "Create Product")
-                    }
+                    {loading
+                      ? editingProduct
+                        ? "Updating..."
+                        : "Creating..."
+                      : editingProduct
+                        ? "Update Product"
+                        : "Create Product"}
                   </button>
                 </div>
               </form>
@@ -870,9 +1100,12 @@ useEffect(() => {
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm Delete</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Confirm Delete
+            </h3>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete "{deleteConfirm.name}"? This action cannot be undone.
+              Are you sure you want to delete "{deleteConfirm.name}"? This
+              action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button
