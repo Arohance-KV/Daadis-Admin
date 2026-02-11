@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { productsAPI, categoriesAPI } from '../utils/api';
 
-const InvoicePrint = ({ order, invoiceNumber}) => {
+const InvoicePrint = ({ order, invoiceNumber }) => {
   const [productsData, setProductsData] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -10,7 +10,7 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
     const fetchProductDetails = async () => {
       try {
         const productDataMap = {};
-        
+
         // Fetch details for each product in the order
         for (const item of order.items) {
           const productId = item.product || item.productId;
@@ -19,7 +19,7 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
               const response = await productsAPI.getProductById(productId);
               const product = response.data;
               console.log('Product details:', product);
-              
+
               // Fetch category details for HSN code
               let hsn = null;
               const categoryId = product.category || product.categoryId;
@@ -37,7 +37,7 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
               } else {
                 console.log('No category ID found in product');
               }
-              
+
               productDataMap[productId] = {
                 hsn: hsn,
                 product: product
@@ -47,7 +47,7 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
             }
           }
         }
-        
+
         setProductsData(productDataMap);
       } catch (error) {
         console.error('Error fetching product details:', error);
@@ -55,7 +55,7 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
         setLoading(false);
       }
     };
-    
+
     if (order.items && order.items.length > 0) {
       fetchProductDetails();
     } else {
@@ -147,13 +147,13 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
           }
         }
       `}</style>
-      
+
       <div className="print-container">
         {/* Header with Logo */}
         <div className="text-center mb-6 no-break">
-          <img 
-            src="https://res.cloudinary.com/dhezrgjf6/image/upload/v1759314456/daadi_s_logo_wnca68.png" 
-            alt="Daadi's Logo" 
+          <img
+            src="https://res.cloudinary.com/dhezrgjf6/image/upload/v1759314456/daadi_s_logo_wnca68.png"
+            alt="Daadi's Logo"
             className="inline-block h-30 mb-4"
             onError={(e) => {
               e.target.style.display = 'none';
@@ -218,14 +218,15 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
           <table className="w-full border-collapse border border-gray-800 text-xs">
             <thead>
               <tr className="bg-gray-100">
-                <th className="border border-gray-800 px-2 py-2 text-left font-bold">s.no</th>
-                <th className="border border-gray-800 px-2 py-2 text-left font-bold">product name</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold">hsn</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold">S.No</th>
+                <th className="border border-gray-800 px-2 py-2 text-left font-bold">Product Name</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold">Hsn</th>
                 <th className="border border-gray-800 px-2 py-2 text-center font-bold">Qty</th>
-                <th className="border border-gray-800 px-2 py-2 text-right font-bold">Unit price</th>
-                <th className="border border-gray-800 px-2 py-2 text-right font-bold">Taxable value</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold">cgst/sgst (Igst %)</th>
-                <th className="border border-gray-800 px-2 py-2 text-right font-bold">Total (including tax)</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Discount</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Mrp</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Taxable Value</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Cgst/Sgst (Igst %)</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Total (Including Tax)</th>
               </tr>
             </thead>
             <tbody>
@@ -233,23 +234,58 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
                 const productId = item.product || item.productId;
                 const productInfo = productsData[productId];
                 const hsn = productInfo?.hsn || 'N/A';
-                const unitTax = calculateTax(item.priceAtPurchase, hsn);
-                const taxableValue = item.priceAtPurchase - unitTax;
+                // Calculate effective unit price from the total (which includes discounts)
+                const effectiveUnitPrice = item.itemTotal > 0 ? (item.itemTotal / item.quantity) : item.priceAtPurchase;
+
+                // Calculate discount amount
+                let discountAmount = 0;
+                // Check if we have priceAtPurchase to compare against (it represents the original unit price)
+                if (item.priceAtPurchase && item.itemTotal) {
+                  const originalTotal = item.priceAtPurchase * item.quantity;
+                  discountAmount = originalTotal - item.itemTotal;
+                  // Ensure we don't show negative discounts (just in case)
+                  if (discountAmount < 0) discountAmount = 0;
+                }
+
+                const unitTax = calculateTax(effectiveUnitPrice, hsn);
+                const taxableValue = effectiveUnitPrice - unitTax;
                 const totalWithTax = item.itemTotal;
-                
+
                 return (
                   <tr key={index}>
                     <td className="border border-gray-800 px-2 py-3 text-center">{index + 1}</td>
                     <td className="border border-gray-800 px-2 py-3">
                       <div className="font-semibold">{item.productName}</div>
                       <div className="text-gray-600">SKU: {item.productCode}</div>
+                      {(() => {
+                        const quantityDiscounts = productInfo?.product?.quantityDiscounts;
+                        if (quantityDiscounts && quantityDiscounts.length > 0) {
+                          // Sort discounts by minQuantity in descending order
+                          const sortedDiscounts = [...quantityDiscounts].sort((a, b) => b.minQuantity - a.minQuantity);
+                          // Find the highest applicable discount
+                          const appliedDiscount = sortedDiscounts.find(d => item.quantity >= d.minQuantity);
+
+                          if (appliedDiscount) {
+                            const discountText = appliedDiscount.discountType === 'percentage'
+                              ? `${appliedDiscount.discountValue}% Off`
+                              : `Rs. ${appliedDiscount.discountValue} Off`;
+                            return (
+                              <div className="text-xs text-green-700 font-medium mt-1">
+                                Pack of {appliedDiscount.minQuantity} ({discountText})
+                              </div>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
                     </td>
                     <td className="border border-gray-800 px-2 py-3 text-center">{hsn}</td>
                     <td className="border border-gray-800 px-2 py-3 text-center">{item.quantity}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-right">Rs. {item.priceAtPurchase.toFixed(2)}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-right">Rs. {taxableValue.toFixed(2)}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-center">{unitTax.toFixed(2)} | {hsn === '21069099' ? '5.00' : '0.00'}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-right">Rs. {totalWithTax.toFixed(2)}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {discountAmount.toFixed(2)}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {effectiveUnitPrice.toFixed(2)}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {taxableValue.toFixed(2)}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">{unitTax.toFixed(2)} | {hsn === '21069099' ? '5.00' : '0.00'}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {totalWithTax.toFixed(2)}</td>
                   </tr>
                 );
               })}
@@ -273,9 +309,9 @@ const InvoicePrint = ({ order, invoiceNumber}) => {
         {/* Signature Section */}
         <div className="mt-12 signature-section no-break">
           <div className="border-2 border-gray-800 inline-block p-4" style={{ width: '200px', height: '100px' }}>
-            <img 
-              src="https://res.cloudinary.com/dhezrgjf6/image/upload/v1759314520/daadissignature_vmvdau.png" 
-              alt="Authorized Signature" 
+            <img
+              src="https://res.cloudinary.com/dhezrgjf6/image/upload/v1759314520/daadissignature_vmvdau.png"
+              alt="Authorized Signature"
               className="w-full h-full object-contain"
               onError={(e) => {
                 e.target.style.display = 'none';
