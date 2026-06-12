@@ -1,5 +1,5 @@
 //pages/prouducts.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
   fetchProducts,
@@ -77,7 +77,11 @@ const Products = () => {
     dispatch(fetchCategories());
   }, [dispatch]);
 
-  useEffect(() => {
+  // Single source of truth for "what products to load right now", honoring the
+  // active category filter, search term, and current page. Used both by the
+  // effect below and after create/update/delete so mutations never reset the
+  // filtered view back to the full product list.
+  const refreshProducts = useCallback(() => {
     const searchParams = {
       page: pagination.page,
       limit: pagination.limit,
@@ -96,7 +100,11 @@ const Products = () => {
     } else {
       dispatch(fetchProducts(searchParams));
     }
-  }, [dispatch, filterCategory, searchTerm, pagination.page]);
+  }, [dispatch, filterCategory, searchTerm, pagination.page, pagination.limit]);
+
+  useEffect(() => {
+    refreshProducts();
+  }, [refreshProducts]);
 
   // Enhanced error display
   const displayError = (errorObj) => {
@@ -347,6 +355,9 @@ const Products = () => {
         await dispatch(createProduct(productData)).unwrap();
       }
       handleCloseModal();
+      // Refresh with the active filters so the edited/created product stays in
+      // the correct category view instead of falling back to all products.
+      refreshProducts();
     } catch (error) {
       console.error("Form submission error:", error);
     }
@@ -356,6 +367,8 @@ const Products = () => {
     try {
       await dispatch(deleteProduct(productId)).unwrap();
       setDeleteConfirm(null);
+      // Refresh with the active filters so deletion doesn't reset the view.
+      refreshProducts();
     } catch (error) {
       console.error("Delete error:", error);
     }

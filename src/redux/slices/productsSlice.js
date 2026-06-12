@@ -86,11 +86,12 @@ export const fetchProductById = createAsyncThunk(
 
 export const createProduct = createAsyncThunk(
   "products/createProduct",
-  async (productData, { rejectWithValue, dispatch }) => {
+  async (productData, { rejectWithValue }) => {
     try {
       const response = await productsAPI.createProduct(productData);
-      // Refresh the product list after creation
-      dispatch(fetchProducts());
+      // NOTE: The list is refreshed by the component using its current
+      // category/search/page filters. Do NOT refresh here with an
+      // unfiltered fetchProducts(), or it will overwrite the filtered view.
       return response.data;
     } catch (error) {
       console.error('Create product error:', error);
@@ -105,11 +106,12 @@ export const createProduct = createAsyncThunk(
 
 export const updateProduct = createAsyncThunk(
   "products/updateProduct",
-  async ({ id, productData }, { rejectWithValue, dispatch }) => {
+  async ({ id, productData }, { rejectWithValue }) => {
     try {
       const response = await productsAPI.updateProduct(id, productData);
-      // Refresh the product list after update
-      dispatch(fetchProducts());
+      // NOTE: The list is refreshed by the component using its current
+      // category/search/page filters. Do NOT refresh here with an
+      // unfiltered fetchProducts(), or it will overwrite the filtered view.
       return response.data;
     } catch (error) {
       console.error('Update product error:', error);
@@ -124,11 +126,12 @@ export const updateProduct = createAsyncThunk(
 
 export const deleteProduct = createAsyncThunk(
   "products/deleteProduct",
-  async (productId, { rejectWithValue, dispatch }) => {
+  async (productId, { rejectWithValue }) => {
     try {
       await productsAPI.deleteProduct(productId);
-      // Refresh the product list after deletion
-      dispatch(fetchProducts());
+      // NOTE: The list is refreshed by the component using its current
+      // category/search/page filters. Do NOT refresh here with an
+      // unfiltered fetchProducts(), or it will overwrite the filtered view.
       return productId;
     } catch (error) {
       console.error('Delete product error:', error);
