@@ -38,7 +38,7 @@ export const apiRequest = async (endpoint, options = {}) => {
           type: "File",
           name: value.name,
           size: `${(value.size / 1024).toFixed(2)}KB`,
-          type: value.type,
+          mimeType: value.type,
           lastModified: new Date(value.lastModified).toISOString(),
         });
       } else {
@@ -340,6 +340,14 @@ export const productsAPI = {
         formData.append("dimensionsH", parseFloat(productData.dimensions.h));
     }
 
+    // Rating
+    if (productData.rating !== undefined && productData.rating !== "") {
+      formData.append("rating", Number(productData.rating));
+    }
+    if (productData.ratingCount !== undefined && productData.ratingCount !== "") {
+      formData.append("ratingCount", Number(productData.ratingCount));
+    }
+
     // Multiple images handling - append all images with the same field name
     if (productData.imageFiles && Array.isArray(productData.imageFiles)) {
       productData.imageFiles.forEach((file) => {
@@ -405,6 +413,14 @@ export const productsAPI = {
         formData.append("dimensionsB", parseFloat(productData.dimensions.b));
       if (productData.dimensions.h)
         formData.append("dimensionsH", parseFloat(productData.dimensions.h));
+    }
+
+    // Rating
+    if (productData.rating !== undefined && productData.rating !== "") {
+      formData.append("rating", Number(productData.rating));
+    }
+    if (productData.ratingCount !== undefined && productData.ratingCount !== "") {
+      formData.append("ratingCount", Number(productData.ratingCount));
     }
 
     // Tags - send as JSON string
