@@ -46,6 +46,8 @@ const Products = () => {
     price: "",
     stock: "",
     description: "",
+    rating: "",
+    ratingCount: "",
     existingImages: [],
     newImages: [],
     imagesToDelete: [], // Track images to be deleted
@@ -158,6 +160,8 @@ const Products = () => {
       price: "",
       stock: "",
       description: "",
+      rating: "",
+      ratingCount: "",
       existingImages: [],
       newImages: [],
       imagesToDelete: [],
@@ -182,6 +186,8 @@ const Products = () => {
         price: product.price || "",
         stock: product.stock || "",
         description: product.description || "",
+        rating: product.rating ?? "",
+        ratingCount: product.ratingCount ?? "",
         existingImages: product.images || [],
         newImages: [],
         imagesToDelete: [],
@@ -323,6 +329,8 @@ const Products = () => {
           price: formData.price,
           stock: formData.stock,
           description: formData.description,
+          rating: formData.rating,
+          ratingCount: formData.ratingCount,
           vegetarian: formData.vegetarian,
           tags: formData.tags.filter((tag) => tag.trim() !== ""),
           weight: formData.weight,
@@ -344,6 +352,8 @@ const Products = () => {
           price: formData.price,
           stock: formData.stock,
           description: formData.description,
+          rating: formData.rating,
+          ratingCount: formData.ratingCount,
           vegetarian: formData.vegetarian,
           imageFiles: formData.newImages, // All selected images
           weight: formData.weight,
@@ -700,6 +710,41 @@ const Products = () => {
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
+                </div>
+
+                {/* Rating Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Rating (0–5)
+                    </label>
+                    <input
+                      type="number"
+                      name="rating"
+                      value={formData.rating}
+                      onChange={handleInputChange}
+                      min="0"
+                      max="5"
+                      step="0.1"
+                      placeholder="e.g., 4.6"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Number of Ratings
+                    </label>
+                    <input
+                      type="number"
+                      name="ratingCount"
+                      value={formData.ratingCount}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="1"
+                      placeholder="e.g., 128"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
                 </div>
 
                 {/* Weight Section */}
