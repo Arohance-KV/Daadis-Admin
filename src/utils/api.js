@@ -38,7 +38,7 @@ export const apiRequest = async (endpoint, options = {}) => {
           type: "File",
           name: value.name,
           size: `${(value.size / 1024).toFixed(2)}KB`,
-          type: value.type,
+          mimeType: value.type,
           lastModified: new Date(value.lastModified).toISOString(),
         });
       } else {
