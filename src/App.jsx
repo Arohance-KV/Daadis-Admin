@@ -61,7 +61,7 @@ const AppContent = () => {
   return (
     <div className="App">
       {isAuthenticated ? (
-        <div className="flex h-screen bg-gray-100">
+        <div className="flex h-screen bg-bg">
           {/* Sidebar Navigation */}
           <Navbar />
           
@@ -71,7 +71,7 @@ const AppContent = () => {
             <Topbar />
             
             {/* Page Content */}
-            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
+            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-bg p-6">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route 

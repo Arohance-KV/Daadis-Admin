@@ -46,11 +46,6 @@ const Topbar = () => {
     }
   }, [user, dispatch]);
 
-  const handleNavigate = (path) => {
-    setShowProfileMenu(false);
-    navigate(path);
-  };
-
   const handleLogout = () => {
     setShowProfileMenu(false);
     dispatch(logout());
