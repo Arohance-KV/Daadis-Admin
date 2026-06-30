@@ -60,7 +60,7 @@ const Navbar = () => {
   return (
     <nav
       className={cn(
-        'flex h-full flex-col border-r border-border bg-surface transition-[width] duration-250',
+        'flex h-full flex-col border-r border-border bg-surface transition-[width] duration-[250ms]',
         collapsed ? 'w-[72px]' : 'w-64'
       )}
     >

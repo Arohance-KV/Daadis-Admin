@@ -552,7 +552,7 @@ Initialize collapse from storage: `const [collapsed, setCollapsed] = useState(()
 
 - [ ] **Step 2: Restyle the sidebar shell and render groups**
 
-Sidebar container classes: `flex h-full flex-col border-r border-border bg-surface transition-[width] duration-250 ${collapsed ? 'w-[72px]' : 'w-64'}`. Render each group with a muted uppercase label (hidden when collapsed) and its items. Each item:
+Sidebar container classes: `flex h-full flex-col border-r border-border bg-surface transition-[width] duration-[250ms] ${collapsed ? 'w-[72px]' : 'w-64'}`. Render each group with a muted uppercase label (hidden when collapsed) and its items. Each item:
 
 ```jsx
 <Link
