@@ -29,7 +29,7 @@ const Checkbox = React.forwardRef(({ className = '', checked, indeterminate, onC
         if (onCheckedChange) onCheckedChange(e.target.checked);
       }}
       className={cn(
-        'h-4 w-4 rounded border border-gray-300 text-yellow-500 focus:ring-yellow-500',
+        'h-4 w-4 rounded-[6px] border border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-fg',
         className
       )}
       {...props}
