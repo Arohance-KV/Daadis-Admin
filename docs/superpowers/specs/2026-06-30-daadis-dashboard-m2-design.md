@@ -85,6 +85,14 @@ that query param. Covers "Processing/Completed clickable."
 Emailed order notifications (backend); any new dependency; changes to
 api.js request logic or auth.
 
+## Known limitation (follow-up in Orders-page redesign / M3)
+The Orders page filters client-side over its own paginated page (10/order
+fetch); the orders API has no `status` query param. So a dashboard deep-link
+(`/orders?status=delivered`) correctly pre-selects the filter but only matches
+within the currently loaded page. Full cross-page status filtering needs either
+a server-side `status` param or the Orders page loading all orders when a
+filter is active — deferred to the Orders-page redesign.
+
 ## Success criteria
 - KPIs/charts reflect ALL orders/products, not one page.
 - Inventory buckets use the 100 threshold.

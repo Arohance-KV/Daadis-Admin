@@ -35,6 +35,11 @@ const Orders = () => {
     dispatch(fetchOrders({ page: 1, limit: 10 }));
   }, [dispatch]);
 
+  // Keep the status filter in sync if the ?status= deep-link changes while mounted.
+  useEffect(() => {
+    setStatusFilter(searchParams.get('status') || 'all');
+  }, [searchParams]);
+
   // Clear error when component unmounts
   useEffect(() => {
     return () => {
