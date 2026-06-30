@@ -70,7 +70,7 @@ export function skuSales(orders = []) {
       const sku = it.productCode || it.productName || "Unknown";
       const cur = map.get(sku) || { sku, name: it.productName || sku, qty: 0, revenue: 0 };
       cur.qty += num(it.quantity);
-      cur.revenue += num(it.itemTotal) || num(it.priceAtPurchase) * num(it.quantity);
+      cur.revenue += it.itemTotal != null ? num(it.itemTotal) : num(it.priceAtPurchase) * num(it.quantity);
       map.set(sku, cur);
     }
   }

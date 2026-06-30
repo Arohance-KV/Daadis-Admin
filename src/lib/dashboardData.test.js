@@ -91,6 +91,19 @@ test('skuSales aggregates qty and revenue per productCode, desc by qty', () => {
   ]);
 });
 
+test('skuSales falls back to priceAtPurchase*qty only when itemTotal absent, keeps a real 0', () => {
+  const skuOrders = [
+    // itemTotal absent -> fallback 25*2 = 50
+    { items: [{ productCode: 'FALL', productName: 'Fallback', quantity: 2, priceAtPurchase: 25 }] },
+    // itemTotal explicitly 0 (free sample) -> revenue stays 0, no fallback
+    { items: [{ productCode: 'FREE', productName: 'Sample', quantity: 1, priceAtPurchase: 99, itemTotal: 0 }] },
+  ];
+  assert.deepEqual(skuSales(skuOrders), [
+    { sku: 'FALL', name: 'Fallback', qty: 2, revenue: 50 },
+    { sku: 'FREE', name: 'Sample', qty: 1, revenue: 0 },
+  ]);
+});
+
 test('customers aggregates by phone, desc by totalSpent', () => {
   const custOrders = [
     { total: 100, createdAt: '2026-06-01T10:00:00Z', shippingAddress: { name: 'Asha', phone: '9991' } },
