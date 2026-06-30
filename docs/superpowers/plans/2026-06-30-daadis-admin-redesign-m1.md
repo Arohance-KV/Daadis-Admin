@@ -293,7 +293,7 @@ In `src/ui/label.jsx`, set: `text-sm font-medium text-text`.
 
 In `src/ui/dialog.jsx`: overlay → `fixed inset-0 z-50 bg-black/40 backdrop-blur-sm`; content → `... rounded-[18px] border border-border bg-surface text-text shadow-[var(--shadow-card)] ...` (keep existing positioning/animation classes).
 In `src/ui/dropdown-menu.jsx`: content → `... rounded-[12px] border border-border bg-surface text-text shadow-[var(--shadow-card)] ...`; item focus → `focus:bg-surface-raised`.
-In `src/ui/checkbox.jsx`: checked state → `data-[state=checked]:bg-primary data-[state=checked]:text-primary-fg`; box → `border border-border rounded-[6px]`.
+In `src/ui/checkbox.jsx` (this is a NATIVE `<input type="checkbox">`, not Radix): color the checked state with the native `accent-primary` utility; box → `border border-border rounded-[6px]`. Do NOT use `data-[state=checked]:*` — those are Radix-only and inert on a native input.
 
 - [ ] **Step 4: Restyle `table.jsx`**
 
