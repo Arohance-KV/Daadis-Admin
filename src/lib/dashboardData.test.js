@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kpis, revenueByDay, statusBreakdown, paymentSplit, topProducts } from './dashboardData.js';
+import { kpis, revenueByDay, statusBreakdown, paymentSplit, topProducts, inventoryStatus, ordersSpike, skuSales, customers } from './dashboardData.js';
 
 // Item shape mirrors the real API (orders.jsx / InvoicePrint.jsx): productName, quantity, priceAtPurchase, itemTotal.
 const orders = [
@@ -60,4 +60,45 @@ test('topProducts sums quantity sold per productName from order items, desc, lim
 test('topProducts does not crash on missing items and labels unknowns', () => {
   const messy = [{ items: undefined }, { items: [{ quantity: 2 }] }];
   assert.deepEqual(topProducts(messy), [{ name: 'Unknown', sales: 2 }]);
+});
+
+test('kpis includes totalProducts', () => {
+  assert.equal(kpis(orders, products).totalProducts, 2);
+});
+
+test('inventoryStatus buckets by threshold 100', () => {
+  const inv = inventoryStatus([
+    { stock: 0 }, { stock: 1 }, { stock: 99 }, { stock: 100 }, { stock: 250 },
+  ]);
+  assert.deepEqual(inv, { inStock: 2, lowStock: 2, outOfStock: 1 });
+});
+
+test('ordersSpike groups revenue and count per day, asc', () => {
+  assert.deepEqual(ordersSpike(orders), [
+    { date: '2026-06-01', revenue: 150, count: 2 },
+    { date: '2026-06-02', revenue: 150, count: 1 },
+  ]);
+});
+
+test('skuSales aggregates qty and revenue per productCode, desc by qty', () => {
+  const skuOrders = [
+    { items: [{ productCode: 'LAD', productName: 'Ladoo', quantity: 2, itemTotal: 200 }] },
+    { items: [{ productCode: 'LAD', productName: 'Ladoo', quantity: 3, itemTotal: 300 }, { productCode: 'BAR', productName: 'Barfi', quantity: 1, itemTotal: 50 }] },
+  ];
+  assert.deepEqual(skuSales(skuOrders), [
+    { sku: 'LAD', name: 'Ladoo', qty: 5, revenue: 500 },
+    { sku: 'BAR', name: 'Barfi', qty: 1, revenue: 50 },
+  ]);
+});
+
+test('customers aggregates by phone, desc by totalSpent', () => {
+  const custOrders = [
+    { total: 100, createdAt: '2026-06-01T10:00:00Z', shippingAddress: { name: 'Asha', phone: '9991' } },
+    { total: 250, createdAt: '2026-06-03T10:00:00Z', shippingAddress: { name: 'Asha', phone: '9991' } },
+    { total: 80,  createdAt: '2026-06-02T10:00:00Z', shippingAddress: { name: 'Ravi', phone: '8882' } },
+  ];
+  assert.deepEqual(customers(custOrders), [
+    { name: 'Asha', phone: '9991', orders: 2, totalSpent: 350, lastOrder: '2026-06-03' },
+    { name: 'Ravi', phone: '8882', orders: 1, totalSpent: 80, lastOrder: '2026-06-02' },
+  ]);
 });
