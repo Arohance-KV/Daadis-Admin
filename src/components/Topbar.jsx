@@ -1,21 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  UserCircleIcon, 
-  ChevronDownIcon
+import {
+  UserCircleIcon,
+  ChevronDownIcon,
+  SunIcon,
+  MoonIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout, fetchProfile } from '../redux/slices/authSlice';
+import { useTheme } from '../hooks/useTheme';
+import Breadcrumbs from '../ui/breadcrumbs';
+
+const LABELS = {
+  dashboard: 'Dashboard',
+  products: 'Products',
+  categories: 'Categories',
+  manufacturers: 'Manufacturers',
+  orders: 'Orders',
+  discounts: 'Discounts',
+  blogs: 'Blogs',
+  settings: 'Settings',
+};
 
 const Topbar = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [search, setSearch] = useState('');
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  
+  const location = useLocation();
+  const { theme, toggle } = useTheme();
+
   const { user, isLoading } = useSelector((state) => state.auth);
 
+  // Build breadcrumbs from current route
+  const seg = location.pathname.split('/').filter(Boolean)[0] || 'dashboard';
+  const crumbs = [
+    { label: 'Daadis', to: '/dashboard' },
+    { label: LABELS[seg] || seg },
+  ];
+
   useEffect(() => {
-    // Fetch profile if user data is not available
     if (!user) {
       dispatch(fetchProfile());
     }
@@ -46,62 +71,84 @@ const Topbar = () => {
     };
   }, [showProfileMenu]);
 
-  const displayName = user ? 
-    `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Admin User' 
+  const displayName = user
+    ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Admin User'
     : 'Loading...';
-    
+
   const displayEmail = user?.email || 'admin@daadi.com';
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
-      <div className="px-6 py-4 flex items-center justify-between">
-        {/* Logo */}
-        <div className="flex items-center">
-          <img
-            src="https://res.cloudinary.com/dhezrgjf6/image/upload/v1757617940/daaid_s_logo_ai0rpl.png"
-            alt="Daadi Logo"
-            className="h-15 w-auto"
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur-md">
+      {/* Left: Breadcrumbs */}
+      <div className="flex items-center min-w-0">
+        <Breadcrumbs items={crumbs} />
+      </div>
+
+      {/* Right: Search + Theme Toggle + Profile Dropdown */}
+      <div className="flex items-center gap-3 shrink-0">
+        {/* Search Slot */}
+        <div className="relative">
+          <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search…"
+            className="h-9 w-64 rounded-[12px] border border-border bg-surface pl-9 pr-3 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
           />
         </div>
+
+        {/* Theme Toggle */}
+        <button
+          onClick={toggle}
+          aria-label="Toggle theme"
+          className="grid h-9 w-9 place-items-center rounded-[12px] border border-border bg-surface text-muted transition-colors hover:bg-surface-raised hover:text-text"
+        >
+          {theme === 'dark' ? (
+            <SunIcon className="h-5 w-5" />
+          ) : (
+            <MoonIcon className="h-5 w-5" />
+          )}
+        </button>
 
         {/* Profile Dropdown */}
         <div className="relative profile-dropdown">
           <button
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             disabled={isLoading}
-            className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center space-x-2 rounded-[12px] border border-border bg-surface px-3 py-2 text-text transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <UserCircleIcon className="w-8 h-8 text-gray-400" />
+            <UserCircleIcon className="h-6 w-6 text-muted" />
             <div className="text-left">
-              <div className="text-sm font-medium text-gray-900">
+              <div className="text-sm font-medium text-text">
                 {isLoading ? (
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-20"></div>
+                  <div className="h-4 w-20 animate-pulse rounded bg-surface-raised" />
                 ) : (
                   displayName
                 )}
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted">
                 {isLoading ? (
-                  <div className="h-3 bg-gray-200 rounded animate-pulse w-32 mt-1"></div>
+                  <div className="mt-1 h-3 w-32 animate-pulse rounded bg-surface-raised" />
                 ) : (
                   displayEmail
                 )}
               </div>
             </div>
-            <ChevronDownIcon 
-              className={`w-4 h-4 text-gray-400 transition-transform ${
+            <ChevronDownIcon
+              className={`h-4 w-4 text-muted transition-transform ${
                 showProfileMenu ? 'rotate-180' : ''
-              }`} 
+              }`}
             />
           </button>
 
           {/* Dropdown Menu */}
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-              <hr className="my-1" />
+            <div className="absolute right-0 mt-2 w-48 rounded-[12px] border border-border bg-surface py-1 shadow-lg z-50">
+              <hr className="my-1 border-border" />
               <button
                 onClick={handleLogout}
-                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="block w-full text-left px-4 py-2 text-sm text-red-500 transition-colors hover:bg-surface-raised"
               >
                 Logout
               </button>
