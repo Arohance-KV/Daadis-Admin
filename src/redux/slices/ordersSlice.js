@@ -39,6 +39,27 @@ export const updateOrderStatus = createAsyncThunk(
   }
 );
 
+// Fetch every page of orders so dashboard aggregates are accurate.
+// ponytail: sequential page loop, hard-capped at 200 pages (safety).
+export const fetchAllOrders = createAsyncThunk(
+  'orders/fetchAllOrders',
+  async (_, { rejectWithValue }) => {
+    try {
+      const first = await ordersAPI.getAllOrders({ page: 1, limit: 100 });
+      const data = first.data;
+      let all = data.orders || [];
+      const totalPages = Math.min(data.totalPages || 1, 200);
+      for (let p = 2; p <= totalPages; p++) {
+        const res = await ordersAPI.getAllOrders({ page: p, limit: 100 });
+        all = all.concat(res.data.orders || []);
+      }
+      return { orders: all, total: data.total ?? all.length, totalPages, currentPage: 1, limit: 100 };
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
 const initialState = {
   orders: [],
   selectedOrder: null,
@@ -123,7 +144,20 @@ const ordersSlice = createSlice({
       .addCase(updateOrderStatus.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      });
+      })
+      // Fetch All Orders (full paged collection)
+      .addCase(fetchAllOrders.pending, (state) => { state.loading = true; state.error = null; })
+      .addCase(fetchAllOrders.fulfilled, (state, action) => {
+        state.loading = false;
+        state.orders = action.payload.orders;
+        state.pagination = {
+          total: action.payload.total,
+          totalPages: action.payload.totalPages,
+          currentPage: action.payload.currentPage,
+          limit: action.payload.limit,
+        };
+      })
+      .addCase(fetchAllOrders.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
   }
 });
 

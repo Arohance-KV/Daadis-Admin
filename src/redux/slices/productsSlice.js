@@ -144,6 +144,29 @@ export const deleteProduct = createAsyncThunk(
   }
 );
 
+// Fetch every page of products for accurate inventory/stock aggregates.
+// ponytail: sequential page loop, hard-capped at 200 pages (safety).
+export const fetchAllProducts = createAsyncThunk(
+  'products/fetchAllProducts',
+  async (_, { rejectWithValue }) => {
+    try {
+      const first = await productsAPI.getAllProducts({ page: 1, limit: 100 });
+      let all = first.data.products || [];
+      const pages = Math.min(first.data.pages || 1, 200);
+      for (let p = 2; p <= pages; p++) {
+        const res = await productsAPI.getAllProducts({ page: p, limit: 100 });
+        all = all.concat(res.data.products || []);
+      }
+      return {
+        products: all,
+        pagination: { page: 1, pages, total: first.data.total ?? all.length, limit: 100 },
+      };
+    } catch (error) {
+      return rejectWithValue({ message: error.message || 'Failed to fetch products' });
+    }
+  }
+);
+
 // Slice
 const productsSlice = createSlice({
   name: "products",
@@ -254,6 +277,22 @@ const productsSlice = createSlice({
         state.loading = false;
         state.error = action.payload || { message: "Error deleting product" };
         console.error('Product deletion failed:', action.payload);
+      })
+
+      // Fetch All Products (full paged collection)
+      .addCase(fetchAllProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.products = action.payload.products;
+        state.pagination = action.payload.pagination;
+      })
+      .addCase(fetchAllProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || { message: "Error fetching all products" };
+        console.error('Fetch all products failed:', action.payload);
       });
   },
 });
