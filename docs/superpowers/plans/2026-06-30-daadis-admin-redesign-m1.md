@@ -201,7 +201,7 @@ Replace the contents of `src/index.css` with:
   --color-warn-soft: var(--warn-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
-  --radius: var(--radius);
+  --radius-lg: var(--radius);
   --font-display: "Fraunces", Georgia, serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
