@@ -61,8 +61,9 @@ Premium accent gradient: `--brand-primary` → `--brand-accent`, used sparingly
 
 ### Typography, spacing, shape, motion
 
-- **Type pairing:** a display/heading face + a UI sans (final fonts confirmed
-  at build; default to a refined system-friendly pairing if no preference).
+- **Type pairing:** **Fraunces** (display/headings — warm optical serif, gives
+  the luxury-food editorial feel) + **Inter** (all UI/body — clean and highly
+  readable in dense tables). Both self-hosted via Google Fonts for performance.
   Semantic scale: display / h1–h3 / body / caption.
 - **Spacing:** strict 8px system.
 - **Radius:** 12–18px on cards/inputs/modals.
