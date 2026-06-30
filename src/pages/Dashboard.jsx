@@ -17,7 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import {
-  AreaChart,
+  ComposedChart,
   Area,
   BarChart,
   Bar,
@@ -31,12 +31,20 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import { fetchProducts } from '../redux/slices/productsSlice';
-import { fetchOrders } from '../redux/slices/ordersSlice';
-import { fetchCategories } from '../redux/slices/categoriesSlice';
-import { fetchDiscounts } from '../redux/slices/discountsSlice';
+import { fetchAllProducts } from '../redux/slices/productsSlice';
+import { fetchAllOrders } from '../redux/slices/ordersSlice';
 
-import { kpis, revenueByDay, statusBreakdown, paymentSplit, topProducts } from '../lib/dashboardData';
+import {
+  kpis,
+  inventoryStatus,
+  ordersSpike,
+  skuSales,
+  customers,
+  statusBreakdown,
+  paymentSplit,
+  topProducts,
+} from '../lib/dashboardData';
+import { toCSV } from '../lib/csv';
 import StatCard from '../ui/stat-card';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import Skeleton from '../ui/skeleton';
@@ -90,17 +98,6 @@ const TIME_RANGE_LABELS = {
   all: "All (Overall)",
 };
 
-// Custom tooltip for AreaChart
-const RevenueTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-[12px] border border-border bg-surface px-3 py-2 text-sm shadow-md">
-      <p className="font-medium text-ink">{label}</p>
-      <p className="text-primary">{inr(payload[0]?.value ?? 0)}</p>
-    </div>
-  );
-};
-
 // Quick Actions section
 const QuickActions = ({ navigate }) => {
   const actions = [
@@ -148,12 +145,10 @@ const Dashboard = () => {
   // Time range filter (kept identical to original)
   const [timeRange, setTimeRange] = useState('today');
 
-  // Fetch on mount
+  // Fetch ALL data on mount (no pagination limits)
   useEffect(() => {
-    dispatch(fetchProducts({ page: 1, limit: 100 }));
-    dispatch(fetchOrders({ page: 1, limit: 100 }));
-    dispatch(fetchCategories());
-    dispatch(fetchDiscounts());
+    dispatch(fetchAllProducts());
+    dispatch(fetchAllOrders());
   }, [dispatch]);
 
   // Time-filtered orders (same logic as original)
@@ -163,15 +158,41 @@ const Dashboard = () => {
     return d >= start && d <= end;
   });
 
-  // KPI aggregations from real data
+  // KPI aggregations — products always all-data; orders time-filtered
   const k = kpis(filteredOrders, products);
 
-  // Chart data from real data
-  const revData = revenueByDay(filteredOrders);
+  // Inventory — always from full products list (not time-filtered)
+  const inv = inventoryStatus(products);
+
+  // Chart data from real (time-filtered) data
+  const spike = ordersSpike(filteredOrders);
   const statusData = statusBreakdown(filteredOrders);
   const payData = paymentSplit(filteredOrders);
-  // topProducts derives from order line items (quantity sold per name)
   const topProdData = topProducts(filteredOrders);
+
+  // SKU sales — top 8
+  const skus = skuSales(filteredOrders).slice(0, 8);
+
+  // Customers — full list for CSV, top 8 for display
+  const custs = customers(filteredOrders);
+
+  // CSV download handler
+  const downloadCustomersCsv = () => {
+    const csv = toCSV(custs, [
+      { key: 'name', label: 'Name' },
+      { key: 'phone', label: 'Phone' },
+      { key: 'orders', label: 'Orders' },
+      { key: 'totalSpent', label: 'Total Spent' },
+      { key: 'lastOrder', label: 'Last Order' },
+    ]);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'daadis-customers.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -208,26 +229,83 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Revenue" value={k.revenue} format={inr} loading={loading} icon={CurrencyRupeeIcon} />
         <StatCard label="Total Orders" value={k.totalOrders} loading={loading} icon={ShoppingCartIcon} />
-        <StatCard label="Pending Orders" value={k.pending} loading={loading} icon={ClockIcon} />
-        <StatCard label="Delivered" value={k.delivered} loading={loading} icon={CheckCircleIcon} />
-        <StatCard label="Products in Stock" value={k.inStockUnits} loading={loading} icon={ArchiveBoxIcon} />
-        <StatCard label="Out of Stock" value={k.outOfStock} loading={loading} icon={ExclamationTriangleIcon} />
+        <div
+          className="cursor-pointer"
+          onClick={() => navigate('/orders?status=pending')}
+          title="View pending orders"
+        >
+          <StatCard label="Pending Orders" value={k.pending} loading={loading} icon={ClockIcon} />
+        </div>
+        <div
+          className="cursor-pointer"
+          onClick={() => navigate('/orders?status=delivered')}
+          title="View delivered orders"
+        >
+          <StatCard label="Delivered" value={k.delivered} loading={loading} icon={CheckCircleIcon} />
+        </div>
+        <StatCard label="Total Products" value={k.totalProducts} loading={loading} icon={ShoppingBagIcon} />
         <StatCard label="Avg Order Value" value={k.aov} format={inr} loading={loading} icon={BanknotesIcon} />
       </div>
 
-      {/* Charts row 1: Revenue trend + Order status donut */}
+      {/* Inventory Status card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Inventory Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-8" />
+              <Skeleton className="h-8" />
+              <Skeleton className="h-8" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-[10px] border border-border bg-surface/50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="h-2.5 w-2.5 rounded-full bg-success" />
+                  <span className="text-sm font-medium text-ink">In Stock</span>
+                </div>
+                <span className="text-sm font-semibold text-success">{inv.inStock}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-[10px] border border-border bg-surface/50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="h-2.5 w-2.5 rounded-full bg-warn" />
+                  <span className="text-sm font-medium text-ink">Low Stock</span>
+                </div>
+                <span className="text-sm font-semibold text-warn">{inv.lowStock}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-[10px] border border-border bg-surface/50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="h-2.5 w-2.5 rounded-full bg-danger" />
+                  <span className="text-sm font-medium text-ink">Out of Stock</span>
+                </div>
+                <span className="text-sm font-semibold text-danger">{inv.outOfStock}</span>
+              </div>
+              <button
+                onClick={() => navigate('/products')}
+                className="mt-1 w-full rounded-[10px] border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              >
+                Manage Inventory
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Charts row 1: Orders Spike combo + Order status donut */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Revenue trend – spans 2 cols */}
+        {/* Orders Spike – spans 2 cols */}
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Revenue Trend</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Orders Spike</CardTitle></CardHeader>
           <CardContent>
             {loading ? (
-              <Skeleton className="h-[260px]" />
-            ) : revData.length === 0 ? (
+              <Skeleton className="h-[280px]" />
+            ) : spike.length === 0 ? (
               <EmptyState title="No data in this range" />
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={revData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={spike} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={C.primary} stopOpacity={0.35} />
@@ -241,37 +319,47 @@ const Dashboard = () => {
                     axisLine={false}
                   />
                   <YAxis
+                    yAxisId="rev"
                     tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(v) => '₹' + (v >= 1000 ? Math.round(v / 1000) + 'k' : v)}
                   />
-                  <Tooltip content={<RevenueTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke={C.primary}
-                    strokeWidth={2}
-                    fill="url(#revGrad)"
-                    dot={false}
-                    activeDot={{ r: 4, fill: C.primary }}
+                  <YAxis
+                    yAxisId="cnt"
+                    orientation="right"
+                    tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
                   />
-                </AreaChart>
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-surface)',
+                      fontSize: '12px',
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Bar yAxisId="cnt" dataKey="count" name="Orders" fill={C.accent} radius={[4, 4, 0, 0]} barSize={18} />
+                  <Area yAxisId="rev" type="monotone" dataKey="revenue" name="Revenue" stroke={C.primary} strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                </ComposedChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
-        {/* Order status donut */}
+        {/* Order status donut — segments clickable */}
         <Card>
           <CardHeader><CardTitle>Order Status</CardTitle></CardHeader>
           <CardContent>
             {loading ? (
-              <Skeleton className="h-[260px]" />
+              <Skeleton className="h-[280px]" />
             ) : statusData.length === 0 ? (
               <EmptyState title="No data in this range" />
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={statusData}
@@ -282,9 +370,11 @@ const Dashboard = () => {
                     paddingAngle={3}
                     cx="50%"
                     cy="45%"
+                    onClick={(data) => navigate('/orders?status=' + data.status)}
+                    style={{ cursor: 'pointer' }}
                   >
                     {statusData.map((entry, idx) => (
-                      <Cell key={entry.status} fill={STATUS_COLORS[idx % STATUS_COLORS.length]} />
+                      <Cell key={entry.status} fill={STATUS_COLORS[idx % STATUS_COLORS.length]} style={{ cursor: 'pointer' }} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -398,6 +488,92 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sales by SKU */}
+      <Card>
+        <CardHeader><CardTitle>Sales by SKU</CardTitle></CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+            </div>
+          ) : skus.length === 0 ? (
+            <EmptyState title="No sales in this range" />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                    <th className="pb-2 pr-4">SKU</th>
+                    <th className="pb-2 pr-4">Product</th>
+                    <th className="pb-2 pr-4 text-right">Qty</th>
+                    <th className="pb-2 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {skus.map((row) => (
+                    <tr key={row.sku} className="hover:bg-surface/60">
+                      <td className="py-2 pr-4 font-mono text-xs text-muted">{row.sku}</td>
+                      <td className="py-2 pr-4 text-ink">{row.name}</td>
+                      <td className="py-2 pr-4 text-right text-ink">{row.qty}</td>
+                      <td className="py-2 text-right font-medium text-primary">{inr(row.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Customers */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Customers</CardTitle>
+          <button
+            onClick={downloadCustomersCsv}
+            disabled={custs.length === 0}
+            className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Download CSV
+          </button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+            </div>
+          ) : custs.length === 0 ? (
+            <EmptyState title="No customers in this range" />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                    <th className="pb-2 pr-4">Name</th>
+                    <th className="pb-2 pr-4">Phone</th>
+                    <th className="pb-2 pr-4 text-right">Orders</th>
+                    <th className="pb-2 text-right">Total Spent</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {custs.slice(0, 8).map((row, i) => (
+                    <tr key={row.phone || row.name + i} className="hover:bg-surface/60">
+                      <td className="py-2 pr-4 font-medium text-ink">{row.name}</td>
+                      <td className="py-2 pr-4 font-mono text-xs text-muted">{row.phone || '—'}</td>
+                      <td className="py-2 pr-4 text-right text-ink">{row.orders}</td>
+                      <td className="py-2 text-right font-medium text-primary">{inr(row.totalSpent)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {custs.length > 8 && (
+                <p className="mt-2 text-right text-xs text-muted">+{custs.length - 8} more — download CSV for full list</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       <QuickActions navigate={navigate} />
