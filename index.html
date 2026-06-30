@@ -5,6 +5,19 @@
     <link rel="icon"  href="/DaadisLogo" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daadi's Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        try {
+          var s = localStorage.getItem('daadis-theme');
+          var d = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var t = (s === 'light' || s === 'dark') ? s : (d ? 'dark' : 'light');
+          if (t === 'dark') document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
