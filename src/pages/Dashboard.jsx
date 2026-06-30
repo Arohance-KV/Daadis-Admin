@@ -43,7 +43,7 @@ import Skeleton from '../ui/skeleton';
 import EmptyState from '../ui/empty-state';
 
 // Brand palette constants
-const C = { primary: '#f59e0b', accent: '#fb923c', grid: 'var(--border)' };
+const C = { primary: '#f59e0b', accent: '#fb923c' };
 
 // Status colour map for PieChart cells
 const STATUS_COLORS = ['#f59e0b', '#fb923c', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#6b7280'];

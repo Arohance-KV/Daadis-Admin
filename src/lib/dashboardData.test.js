@@ -8,8 +8,8 @@ const orders = [
   { total: 150, status: 'delivered', paymentMethod: 'card', createdAt: '2026-06-02T09:00:00Z', items: [{ name: 'Ladoo', quantity: 3 }] },
 ];
 const products = [
-  { name: 'Ladoo', stock: 10, salesCount: 40 },
-  { name: 'Barfi', stock: 0,  salesCount: 25 },
+  { name: 'Ladoo', stock: 10 },
+  { name: 'Barfi', stock: 0 },
 ];
 
 test('kpis aggregates revenue, counts, stock, aov', () => {
