@@ -47,9 +47,13 @@ test('paymentSplit counts methods', () => {
   assert.equal(p.cod, 1);
 });
 
-test('topProducts sorts by sales desc and limits', () => {
-  const t = topProducts(products, 1);
-  assert.deepEqual(t, [{ name: 'Ladoo', sales: 40 }]);
+test('topProducts sums quantity sold per name from order items, desc, limited', () => {
+  // Ladoo: 2 + 3 = 5, Barfi: 1
+  assert.deepEqual(topProducts(orders), [
+    { name: 'Ladoo', sales: 5 },
+    { name: 'Barfi', sales: 1 },
+  ]);
+  assert.deepEqual(topProducts(orders, 1), [{ name: 'Ladoo', sales: 5 }]);
 });
 
 test('categoryPerformance sums price*quantity per category, falls back to Uncategorized', () => {

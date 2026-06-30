@@ -170,8 +170,8 @@ const Dashboard = () => {
   const revData = revenueByDay(filteredOrders);
   const statusData = statusBreakdown(filteredOrders);
   const payData = paymentSplit(filteredOrders);
-  // topProducts uses product.salesCount — will be empty if field doesn't exist
-  const topProdData = topProducts(products);
+  // topProducts derives from order line items (quantity sold per name)
+  const topProdData = topProducts(filteredOrders);
 
   return (
     <div className="space-y-6">

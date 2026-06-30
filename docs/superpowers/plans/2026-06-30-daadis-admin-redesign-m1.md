@@ -673,7 +673,7 @@ git commit -m "feat(shell): redesign topbar with theme toggle, breadcrumbs, glas
   - `revenueByDay(orders) -> { date: string, revenue: number }[]` (sorted ascending by date)
   - `statusBreakdown(orders) -> { status: string, count: number }[]`
   - `paymentSplit(orders) -> { method: string, count: number }[]`
-  - `topProducts(products, n = 5) -> { name: string, sales: number }[]` (desc by sales)
+  - `topProducts(orders, n = 5) -> { name: string, sales: number }[]` — sums quantity sold per item name from order line items (products carry no salesCount), desc by sales
   - `categoryPerformance(orders) -> { category: string, revenue: number }[]` — uses `item.category` when present, else `"Uncategorized"`.
 
 - [ ] **Step 1: Write the failing tests**

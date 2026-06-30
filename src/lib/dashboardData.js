@@ -37,9 +37,18 @@ export function paymentSplit(orders = []) {
   return [...map.entries()].map(([method, count]) => ({ method, count }));
 }
 
-export function topProducts(products = [], n = 5) {
-  return [...products]
-    .map((p) => ({ name: p.name, sales: num(p.salesCount) }))
+// Top sellers derived from real order line items (quantity sold per product name),
+// since products carry no salesCount field in the API.
+export function topProducts(orders = [], n = 5) {
+  const map = new Map();
+  for (const o of orders) {
+    for (const it of o.items || []) {
+      const name = it.name || "Unknown";
+      map.set(name, num(map.get(name)) + num(it.quantity));
+    }
+  }
+  return [...map.entries()]
+    .map(([name, sales]) => ({ name, sales }))
     .sort((a, b) => b.sales - a.sales)
     .slice(0, n);
 }
