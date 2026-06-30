@@ -1,5 +1,6 @@
 // pages/Orders.jsx
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchOrders, updateOrderStatus, fetchOrderById, clearError } from '../redux/slices/ordersSlice';
 import InvoicePrint from '../components/InvoicePrint';
@@ -21,8 +22,10 @@ const Orders = () => {
   const dispatch = useDispatch();
   const { orders, loading, error, pagination } = useSelector((state) => state.orders);
   
+  const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  // Seed status filter from ?status= so dashboard deep-links land pre-filtered.
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
