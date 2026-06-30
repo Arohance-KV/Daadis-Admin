@@ -49,6 +49,9 @@ export const fetchAllOrders = createAsyncThunk(
       const data = first.data;
       let all = data.orders || [];
       const totalPages = Math.min(data.totalPages || 1, 200);
+      if ((data.totalPages || 1) > 200) {
+        console.warn(`fetchAllOrders: capped at 200 pages; ${data.totalPages} pages exist. Dashboard totals are partial.`);
+      }
       for (let p = 2; p <= totalPages; p++) {
         const res = await ordersAPI.getAllOrders({ page: p, limit: 100 });
         all = all.concat(res.data.orders || []);
@@ -62,6 +65,11 @@ export const fetchAllOrders = createAsyncThunk(
 
 const initialState = {
   orders: [],
+  // Full collection for the dashboard — kept separate from the paginated
+  // `orders`/`pagination` so the Orders page's paging is never clobbered.
+  allOrders: [],
+  allLoading: false,
+  allError: null,
   selectedOrder: null,
   loading: false,
   error: null,
@@ -145,19 +153,13 @@ const ordersSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
-      // Fetch All Orders (full paged collection)
-      .addCase(fetchAllOrders.pending, (state) => { state.loading = true; state.error = null; })
+      // Fetch All Orders (full collection for dashboard — isolated state)
+      .addCase(fetchAllOrders.pending, (state) => { state.allLoading = true; state.allError = null; })
       .addCase(fetchAllOrders.fulfilled, (state, action) => {
-        state.loading = false;
-        state.orders = action.payload.orders;
-        state.pagination = {
-          total: action.payload.total,
-          totalPages: action.payload.totalPages,
-          currentPage: action.payload.currentPage,
-          limit: action.payload.limit,
-        };
+        state.allLoading = false;
+        state.allOrders = action.payload.orders;
       })
-      .addCase(fetchAllOrders.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
+      .addCase(fetchAllOrders.rejected, (state, action) => { state.allLoading = false; state.allError = action.payload; });
   }
 });
 

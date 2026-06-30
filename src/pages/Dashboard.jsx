@@ -131,13 +131,14 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Redux state
-  const orders = useSelector((state) => state.orders.orders);
-  const products = useSelector((state) => state.products.products);
-  const ordersLoading = useSelector((state) => state.orders.loading);
-  const productsLoading = useSelector((state) => state.products.loading);
-  const ordersError = useSelector((state) => state.orders.error);
-  const productsError = useSelector((state) => state.products.error);
+  // Redux state — read the isolated "all" collections so the paginated
+  // Orders/Products pages keep their own state untouched.
+  const orders = useSelector((state) => state.orders.allOrders);
+  const products = useSelector((state) => state.products.allProducts);
+  const ordersLoading = useSelector((state) => state.orders.allLoading);
+  const productsLoading = useSelector((state) => state.products.allLoading);
+  const ordersError = useSelector((state) => state.orders.allError);
+  const productsError = useSelector((state) => state.products.allError);
 
   const loading = ordersLoading || productsLoading;
   const error = ordersError || productsError;
@@ -229,20 +230,22 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Revenue" value={k.revenue} format={inr} loading={loading} icon={CurrencyRupeeIcon} />
         <StatCard label="Total Orders" value={k.totalOrders} loading={loading} icon={ShoppingCartIcon} />
-        <div
-          className="cursor-pointer"
+        <button
+          type="button"
+          className="text-left rounded-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           onClick={() => navigate('/orders?status=pending')}
-          title="View pending orders"
+          aria-label="View pending orders"
         >
           <StatCard label="Pending Orders" value={k.pending} loading={loading} icon={ClockIcon} />
-        </div>
-        <div
-          className="cursor-pointer"
+        </button>
+        <button
+          type="button"
+          className="text-left rounded-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           onClick={() => navigate('/orders?status=delivered')}
-          title="View delivered orders"
+          aria-label="View delivered orders"
         >
           <StatCard label="Delivered" value={k.delivered} loading={loading} icon={CheckCircleIcon} />
-        </div>
+        </button>
         <StatCard label="Total Products" value={k.totalProducts} loading={loading} icon={ShoppingBagIcon} />
         <StatCard label="Avg Order Value" value={k.aov} format={inr} loading={loading} icon={BanknotesIcon} />
       </div>
@@ -370,7 +373,7 @@ const Dashboard = () => {
                     paddingAngle={3}
                     cx="50%"
                     cy="45%"
-                    onClick={(data) => navigate('/orders?status=' + data.status)}
+                    onClick={(data) => data?.status && navigate('/orders?status=' + data.status)}
                     style={{ cursor: 'pointer' }}
                   >
                     {statusData.map((entry, idx) => (

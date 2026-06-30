@@ -5,6 +5,11 @@ import { productsAPI } from "../../utils/api";
 // Initial state
 const initialState = {
   products: [],
+  // Full collection for the dashboard — separate from the paginated
+  // `products`/`pagination` so the Products page's paging is never clobbered.
+  allProducts: [],
+  allLoading: false,
+  allError: null,
   pagination: {
     page: 1,
     pages: 1,
@@ -153,6 +158,9 @@ export const fetchAllProducts = createAsyncThunk(
       const first = await productsAPI.getAllProducts({ page: 1, limit: 100 });
       let all = first.data.products || [];
       const pages = Math.min(first.data.pages || 1, 200);
+      if ((first.data.pages || 1) > 200) {
+        console.warn(`fetchAllProducts: capped at 200 pages; ${first.data.pages} pages exist. Dashboard totals are partial.`);
+      }
       for (let p = 2; p <= pages; p++) {
         const res = await productsAPI.getAllProducts({ page: p, limit: 100 });
         all = all.concat(res.data.products || []);
@@ -279,19 +287,18 @@ const productsSlice = createSlice({
         console.error('Product deletion failed:', action.payload);
       })
 
-      // Fetch All Products (full paged collection)
+      // Fetch All Products (full collection for dashboard — isolated state)
       .addCase(fetchAllProducts.pending, (state) => {
-        state.loading = true;
-        state.error = null;
+        state.allLoading = true;
+        state.allError = null;
       })
       .addCase(fetchAllProducts.fulfilled, (state, action) => {
-        state.loading = false;
-        state.products = action.payload.products;
-        state.pagination = action.payload.pagination;
+        state.allLoading = false;
+        state.allProducts = action.payload.products;
       })
       .addCase(fetchAllProducts.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload || { message: "Error fetching all products" };
+        state.allLoading = false;
+        state.allError = action.payload || { message: "Error fetching all products" };
         console.error('Fetch all products failed:', action.payload);
       });
   },
