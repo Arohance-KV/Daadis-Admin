@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kpis, revenueByDay, statusBreakdown, paymentSplit, topProducts } from './dashboardData.js';
+import { kpis, revenueByDay, statusBreakdown, paymentSplit, topProducts, categoryPerformance } from './dashboardData.js';
 
 const orders = [
   { total: 100, status: 'delivered', paymentMethod: 'card', createdAt: '2026-06-01T10:00:00Z', items: [{ name: 'Ladoo', quantity: 2 }] },
@@ -50,4 +50,16 @@ test('paymentSplit counts methods', () => {
 test('topProducts sorts by sales desc and limits', () => {
   const t = topProducts(products, 1);
   assert.deepEqual(t, [{ name: 'Ladoo', sales: 40 }]);
+});
+
+test('categoryPerformance sums price*quantity per category, falls back to Uncategorized', () => {
+  const catOrders = [
+    { items: [{ category: 'Sweets', price: 100, quantity: 2 }, { category: 'Namkeen', price: 50, quantity: 1 }] },
+    { items: [{ category: 'Sweets', price: 100, quantity: 1 }, { price: 20, quantity: 3 }] }, // missing category
+    { items: undefined }, // missing items: must not crash
+  ];
+  const c = Object.fromEntries(categoryPerformance(catOrders).map((x) => [x.category, x.revenue]));
+  assert.equal(c.Sweets, 300);        // 100*2 + 100*1
+  assert.equal(c.Namkeen, 50);        // 50*1
+  assert.equal(c.Uncategorized, 60);  // 20*3
 });
