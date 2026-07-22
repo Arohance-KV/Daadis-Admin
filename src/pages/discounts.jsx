@@ -1,101 +1,103 @@
 // pages/discounts.jsx
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { useLocation, useNavigate } from "react-router-dom";
-import { 
-  fetchDiscounts, 
-  createDiscount, 
-  updateDiscount, 
+import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  fetchDiscounts,
+  createDiscount,
+  updateDiscount,
   deleteDiscount,
-  clearError 
+  clearError,
 } from '../redux/slices/discountsSlice';
-import { 
-  PlusIcon, 
-  MagnifyingGlassIcon, 
-  PencilIcon, 
+import { fetchCategories } from '../redux/slices/categoriesSlice';
+import {
+  PlusIcon,
+  MagnifyingGlassIcon,
+  PencilIcon,
   TrashIcon,
   EyeIcon,
+  EyeSlashIcon,
   TicketIcon,
-  CalendarIcon,
-  CurrencyRupeeIcon,
-  ExclamationTriangleIcon
+  CheckCircleIcon,
+  ChartBarIcon,
+  ReceiptPercentIcon,
+  ExclamationTriangleIcon,
+  XCircleIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
+import { cn } from '../lib/utils';
+import StatCard from '../ui/stat-card';
+import Badge from '../ui/badge';
+import { Card, CardContent } from '../ui/card';
+import Skeleton from '../ui/skeleton';
+import EmptyState from '../ui/empty-state';
+
+const inputCls =
+  'w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/50';
+const labelCls = 'mb-1 block text-sm font-medium text-ink';
+
+const STATUS_TONES = { active: 'success', inactive: 'neutral', expired: 'danger' };
+
+const EMPTY_FORM = {
+  title: '',
+  code: '',
+  type: 'percentage',
+  value: '',
+  minOrderAmount: '',
+  maxDiscount: '',
+  validFrom: '',
+  validTo: '',
+  usageLimit: '',
+  applicableCategories: ['all'],
+  description: '',
+  status: 'active',
+};
 
 const Discounts = () => {
   const dispatch = useDispatch();
-  const { discounts, loading, error, pagination } = useSelector((state) => state.discounts);
+  const { discounts, loading, error } = useSelector((state) => state.discounts);
   const { categories } = useSelector((state) => state.categories);
-  
+
   const [showModal, setShowModal] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-
-  const [formData, setFormData] = useState({
-    title: '',
-    code: '',
-    type: 'percentage',
-    value: '',
-    minOrderAmount: '',
-    maxDiscount: '',
-    validFrom: '',
-    validTo: '',
-    usageLimit: '',
-    applicableCategories: ['all'],
-    description: '',
-    status: 'active'
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Handle navigation from Dashboard
+  // Dashboard quick-action deep link
   useEffect(() => {
     if (location.state?.openAddModal) {
       setShowModal(true);
-      // Clear the state to prevent reopening on refresh
       navigate(location.pathname, { replace: true });
     }
   }, [location.state, navigate, location.pathname]);
 
-  // Fetch discounts on component mount
   useEffect(() => {
     dispatch(fetchDiscounts());
+    // Needed for the "Applicable Categories" checkboxes in the modal
+    if (categories.length === 0) dispatch(fetchCategories());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
 
-  // Clear error when component unmounts or error changes
   useEffect(() => {
     if (error) {
-      const timer = setTimeout(() => {
-        dispatch(clearError());
-      }, 5000);
+      const timer = setTimeout(() => dispatch(clearError()), 5000);
       return () => clearTimeout(timer);
     }
   }, [error, dispatch]);
 
   const resetForm = () => {
-    setFormData({
-      title: '',
-      code: '',
-      type: 'percentage',
-      value: '',
-      minOrderAmount: '',
-      maxDiscount: '',
-      validFrom: '',
-      validTo: '',
-      usageLimit: '',
-      applicableCategories: ['all'],
-      description: '',
-      status: 'active'
-    });
+    setFormData(EMPTY_FORM);
     setEditingDiscount(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     try {
       if (editingDiscount) {
         await dispatch(updateDiscount({ id: editingDiscount.id, ...formData })).unwrap();
@@ -106,7 +108,6 @@ const Discounts = () => {
       resetForm();
     } catch (error) {
       console.error('Error saving discount:', error);
-      // Error is already handled in Redux
     }
   };
 
@@ -124,7 +125,7 @@ const Discounts = () => {
       usageLimit: discount.usageLimit.toString(),
       applicableCategories: discount.applicableCategories.length > 0 ? discount.applicableCategories : ['all'],
       description: discount.description,
-      status: discount.status
+      status: discount.status,
     });
     setShowModal(true);
   };
@@ -142,476 +143,306 @@ const Discounts = () => {
   const handleToggleStatus = async (discount) => {
     const updatedStatus = discount.status === 'active' ? 'inactive' : 'active';
     try {
-      await dispatch(updateDiscount({ 
-        id: discount.id, 
-        ...discount,
-        status: updatedStatus 
-      })).unwrap();
+      await dispatch(updateDiscount({ id: discount.id, ...discount, status: updatedStatus })).unwrap();
     } catch (error) {
       console.error('Error toggling discount status:', error);
     }
   };
 
-  const filteredDiscounts = discounts.filter(discount => {
-    const matchesSearch = discount.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         discount.code.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredDiscounts = discounts.filter((discount) => {
+    const q = searchTerm.toLowerCase();
+    const matchesSearch =
+      discount.title.toLowerCase().includes(q) || discount.code.toLowerCase().includes(q);
     const matchesStatus = statusFilter === 'all' || discount.status === statusFilter;
     const matchesType = typeFilter === 'all' || discount.type === typeFilter;
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-gray-100 text-gray-800';
-      case 'expired': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const formatDate = (dateString) =>
+    dateString ? new Date(dateString).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
-  const getTypeColor = (type) => {
-    return type === 'percentage' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const calculateAverageDiscount = () => {
+  const avgDiscount = () => {
     if (discounts.length === 0) return 0;
-    const total = discounts.reduce((sum, discount) => {
-      if (discount.type === 'percentage') {
-        return sum + discount.value;
-      } else {
-        // For fixed discounts, calculate percentage based on min order amount
-        return sum + ((discount.value / discount.minOrderAmount) * 100);
-      }
-    }, 0);
+    const total = discounts.reduce((sum, d) =>
+      sum + (d.type === 'percentage' ? d.value : (d.value / d.minOrderAmount) * 100), 0);
     return Math.round(total / discounts.length);
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center gap-3">
-          <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
-          <span className="text-red-800">{error}</span>
-          <button 
-            onClick={() => dispatch(clearError())}
-            className="ml-auto text-red-500 hover:text-red-700"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Discount Management</h1>
-          <p className="text-gray-600 mt-1">Manage promotional discounts and coupon codes</p>
+          <h1 className="font-display text-2xl font-bold text-ink">Discounts</h1>
+          <p className="mt-0.5 text-sm text-muted">Manage promotional discounts and coupon codes</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          disabled={loading}
-          className="bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-        >
-          <PlusIcon className="w-5 h-5" />
-          <span>Add Discount</span>
-        </button>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search discounts..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="expired">Expired</option>
-          </select>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-          >
-            <option value="all">All Types</option>
-            <option value="percentage">Percentage</option>
-            <option value="fixed">Fixed Amount</option>
-          </select>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => dispatch(fetchDiscounts())}
             disabled={loading}
-            className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+            className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-surface px-4 py-2 text-sm font-medium text-ink shadow-sm transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary disabled:opacity-50"
           >
-            {loading ? 'Refreshing...' : 'Refresh'}
+            <ArrowPathIcon className={cn('h-4 w-4', loading && 'animate-spin')} />
+            Refresh
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowModal(true); }}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
+          >
+            <PlusIcon className="h-5 w-5" />
+            Add Discount
           </button>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Discounts</p>
-              <p className="text-3xl font-bold text-gray-900">{discounts.length}</p>
-            </div>
-            <TicketIcon className="w-12 h-12 text-orange-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Active Discounts</p>
-              <p className="text-3xl font-bold text-green-600">
-                {discounts.filter(d => d.status === 'active').length}
-              </p>
-            </div>
-            <CalendarIcon className="w-12 h-12 text-green-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Usage</p>
-              <p className="text-3xl font-bold text-blue-600">
-                {discounts.reduce((sum, d) => sum + d.usageCount, 0)}
-              </p>
-            </div>
-            <EyeIcon className="w-12 h-12 text-blue-500" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Avg Discount</p>
-              <p className="text-3xl font-bold text-purple-600">{calculateAverageDiscount()}%</p>
-            </div>
-            <CurrencyRupeeIcon className="w-12 h-12 text-purple-500" />
-          </div>
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {loading && (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-          <span className="ml-2 text-gray-600">Loading discounts...</span>
+      {error && (
+        <div className="flex items-center gap-2 rounded-[12px] border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          <ExclamationTriangleIcon className="h-5 w-5 shrink-0" />
+          <span>{String(error)}</span>
+          <button onClick={() => dispatch(clearError())} className="ml-auto" aria-label="Dismiss error">
+            <XCircleIcon className="h-5 w-5" />
+          </button>
         </div>
       )}
 
-      {/* Discounts Table */}
-      {!loading && (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Discount Details
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Code & Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Value & Limits
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Usage
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredDiscounts.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                      {searchTerm || statusFilter !== 'all' || typeFilter !== 'all' 
-                        ? 'No discounts found matching your filters.' 
-                        : 'No discounts created yet.'}
-                    </td>
+      {/* Stats */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total Discounts" value={discounts.length} loading={loading && discounts.length === 0} icon={TicketIcon} />
+        <StatCard label="Active" value={discounts.filter((d) => d.status === 'active').length} loading={loading && discounts.length === 0} icon={CheckCircleIcon} />
+        <StatCard label="Total Usage" value={discounts.reduce((sum, d) => sum + d.usageCount, 0)} loading={loading && discounts.length === 0} icon={ChartBarIcon} />
+        <StatCard label="Avg Discount" value={avgDiscount()} format={(n) => Math.round(n) + '%'} loading={loading && discounts.length === 0} icon={ReceiptPercentIcon} />
+      </div>
+
+      {/* Table */}
+      <Card>
+        <CardContent>
+          {/* Toolbar */}
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative w-full lg:max-w-xs">
+              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                type="search"
+                placeholder="Search title or code…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={cn(inputCls, 'pl-9')}
+              />
+            </div>
+            <div className="flex gap-2">
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={inputCls} aria-label="Filter by status">
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="expired">Expired</option>
+              </select>
+              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={inputCls} aria-label="Filter by type">
+                <option value="all">All Types</option>
+                <option value="percentage">Percentage</option>
+                <option value="fixed">Fixed Amount</option>
+              </select>
+            </div>
+          </div>
+
+          {loading && discounts.length === 0 ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14" />)}
+            </div>
+          ) : filteredDiscounts.length === 0 ? (
+            <EmptyState
+              title="No discounts found"
+              message={searchTerm || statusFilter !== 'all' || typeFilter !== 'all' ? 'Try different filters.' : 'Create your first coupon to get started.'}
+              icon={TicketIcon}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                    <th className="pb-2 pr-4">Discount</th>
+                    <th className="pb-2 pr-4">Code & Type</th>
+                    <th className="pb-2 pr-4">Value & Limits</th>
+                    <th className="pb-2 pr-4">Usage</th>
+                    <th className="pb-2 pr-4">Status</th>
+                    <th className="pb-2 text-right">Actions</th>
                   </tr>
-                ) : (
-                  filteredDiscounts.map((discount) => (
-                    <tr key={discount.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{discount.title}</div>
-                          <div className="text-sm text-gray-500">{discount.description}</div>
-                          <div className="text-xs text-gray-400 mt-1">
-                            {formatDate(discount.validFrom)} - {formatDate(discount.validTo)}
-                          </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredDiscounts.map((discount) => (
+                    <tr key={discount.id} className="hover:bg-surface/60">
+                      <td className="py-3 pr-4">
+                        <div className="font-medium text-ink">{discount.title}</div>
+                        <div className="max-w-[220px] truncate text-xs text-muted">{discount.description}</div>
+                        <div className="mt-0.5 text-xs text-muted">
+                          {formatDate(discount.validFrom)} – {formatDate(discount.validTo)}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">{discount.code}</div>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${getTypeColor(discount.type)}`}>
-                            {discount.type}
-                          </span>
+                      <td className="py-3 pr-4">
+                        <span className="rounded-[6px] bg-surface-raised px-2 py-1 font-mono text-xs text-ink">{discount.code}</span>
+                        <div className="mt-1.5">
+                          <Badge tone={discount.type === 'percentage' ? 'info' : 'warn'}>
+                            {discount.type === 'percentage' ? 'Percentage' : 'Fixed'}
+                          </Badge>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
+                      <td className="py-3 pr-4">
+                        <div className="font-medium tabular-nums text-ink">
                           {discount.type === 'percentage' ? `${discount.value}%` : `₹${discount.value}`}
                         </div>
-                        <div className="text-xs text-gray-500">Min: ₹{discount.minOrderAmount}</div>
-                        {discount.maxDiscount && (
-                          <div className="text-xs text-gray-500">Max: ₹{discount.maxDiscount}</div>
-                        )}
+                        <div className="text-xs text-muted">Min ₹{discount.minOrderAmount}</div>
+                        {discount.maxDiscount && <div className="text-xs text-muted">Max ₹{discount.maxDiscount}</div>}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {discount.usageCount} / {discount.usageLimit}
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                          <div 
-                            className="bg-orange-500 h-1.5 rounded-full" 
+                      <td className="py-3 pr-4">
+                        <div className="tabular-nums text-ink">{discount.usageCount} / {discount.usageLimit}</div>
+                        <div className="mt-1 h-1.5 w-24 rounded-full bg-surface-raised">
+                          <div
+                            className="h-1.5 rounded-full bg-primary"
                             style={{ width: `${Math.min((discount.usageCount / discount.usageLimit) * 100, 100)}%` }}
-                          ></div>
+                          />
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(discount.status)}`}>
-                          {discount.status}
-                        </span>
+                      <td className="py-3 pr-4">
+                        <Badge tone={STATUS_TONES[discount.status] || 'neutral'} className="capitalize">{discount.status}</Badge>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
+                      <td className="py-3 text-right">
+                        <div className="inline-flex items-center gap-1">
                           <button
                             onClick={() => handleEdit(discount)}
                             disabled={loading}
-                            className="text-orange-600 hover:text-orange-900 disabled:opacity-50"
+                            className="rounded-[8px] p-1.5 text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
                             title="Edit discount"
                           >
-                            <PencilIcon className="w-4 h-4" />
+                            <PencilIcon className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleToggleStatus(discount)}
                             disabled={loading}
-                            className={`${discount.status === 'active' ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'} disabled:opacity-50`}
+                            className="rounded-[8px] p-1.5 text-muted transition-colors hover:bg-warn-soft hover:text-warn disabled:opacity-50"
                             title={discount.status === 'active' ? 'Deactivate' : 'Activate'}
                           >
-                            <EyeIcon className="w-4 h-4" />
+                            {discount.status === 'active' ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                           </button>
                           <button
                             onClick={() => handleDelete(discount.id)}
                             disabled={loading}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                            className="rounded-[8px] p-1.5 text-muted transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
                             title="Delete discount"
                           >
-                            <TrashIcon className="w-4 h-4" />
+                            <TrashIcon className="h-4 w-4" />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Info */}
-          {pagination.total > 0 && (
-            <div className="bg-white px-6 py-3 border-t border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-700">
-                  Showing {((pagination.currentPage - 1) * pagination.limit) + 1} to{' '}
-                  {Math.min(pagination.currentPage * pagination.limit, pagination.total)} of{' '}
-                  {pagination.total} results
-                </div>
-                <div className="text-sm text-gray-700">
-                  Page {pagination.currentPage} of {pagination.totalPages}
-                </div>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        </div>
-      )}
+        </CardContent>
+      </Card>
 
-      {/* Add/Edit Discount Modal */}
+      {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[18px] border border-border bg-surface shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <h3 className="font-display text-lg font-semibold text-ink">
                 {editingDiscount ? 'Edit Discount' : 'Add New Discount'}
               </h3>
+              <button onClick={() => { setShowModal(false); resetForm(); }} className="text-muted transition-colors hover:text-ink" aria-label="Close">
+                <XCircleIcon className="h-6 w-6" />
+              </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {/* Title & Code */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-4 p-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.title}
+                  <label htmlFor="d-title" className={labelCls}>Title <span className="text-danger">*</span></label>
+                  <input id="d-title" type="text" required value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="e.g., Sweet Treats Discount"
-                  />
+                    className={inputCls} placeholder="e.g. Sweet Treats Discount" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Code</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.code}
+                  <label htmlFor="d-code" className={labelCls}>Code <span className="text-danger">*</span></label>
+                  <input id="d-code" type="text" required value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="e.g., SWEET50"
-                  />
+                    className={cn(inputCls, 'font-mono uppercase')} placeholder="e.g. SWEET50" />
                 </div>
               </div>
 
-              {/* Type, Value, Min Order */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
+                  <label htmlFor="d-type" className={labelCls}>Type</label>
+                  <select id="d-type" value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })} className={inputCls}>
                     <option value="percentage">Percentage</option>
                     <option value="fixed">Fixed Amount</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Value {formData.type === 'percentage' ? '(%)' : '(₹)'}
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
+                  <label htmlFor="d-value" className={labelCls}>Value {formData.type === 'percentage' ? '(%)' : '(₹)'} <span className="text-danger">*</span></label>
+                  <input id="d-value" type="number" required min="0"
                     max={formData.type === 'percentage' ? '100' : undefined}
                     value={formData.value}
-                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                    onChange={(e) => setFormData({ ...formData, value: e.target.value })} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Order Amount (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={formData.minOrderAmount}
-                    onChange={(e) => setFormData({ ...formData, minOrderAmount: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  <label htmlFor="d-min" className={labelCls}>Min Order (₹) <span className="text-danger">*</span></label>
+                  <input id="d-min" type="number" required min="0" value={formData.minOrderAmount}
+                    onChange={(e) => setFormData({ ...formData, minOrderAmount: e.target.value })} className={inputCls} />
                 </div>
               </div>
 
-              {/* Max Discount & Usage Limit */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Max Discount (₹) {formData.type === 'fixed' ? '(Optional)' : ''}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.maxDiscount}
+                  <label htmlFor="d-max" className={labelCls}>Max Discount (₹){formData.type === 'fixed' ? ' — optional' : ''}</label>
+                  <input id="d-max" type="number" min="0" value={formData.maxDiscount}
                     onChange={(e) => setFormData({ ...formData, maxDiscount: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder={formData.type === 'fixed' ? 'Leave empty if no limit' : 'Max discount amount'}
-                  />
+                    className={inputCls}
+                    placeholder={formData.type === 'fixed' ? 'Leave empty if no limit' : 'Max discount amount'} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Usage Limit</label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    value={formData.usageLimit}
-                    onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  <label htmlFor="d-limit" className={labelCls}>Usage Limit <span className="text-danger">*</span></label>
+                  <input id="d-limit" type="number" required min="1" value={formData.usageLimit}
+                    onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })} className={inputCls} />
                 </div>
               </div>
 
-              {/* Dates */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.validFrom}
-                    onChange={(e) => setFormData({ ...formData, validFrom: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  <label htmlFor="d-from" className={labelCls}>Start Date <span className="text-danger">*</span></label>
+                  <input id="d-from" type="date" required value={formData.validFrom} max={formData.validTo || undefined}
+                    onChange={(e) => setFormData({ ...formData, validFrom: e.target.value })} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.validTo}
-                    onChange={(e) => setFormData({ ...formData, validTo: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  <label htmlFor="d-to" className={labelCls}>End Date <span className="text-danger">*</span></label>
+                  <input id="d-to" type="date" required value={formData.validTo} min={formData.validFrom || undefined}
+                    onChange={(e) => setFormData({ ...formData, validTo: e.target.value })} className={inputCls} />
                 </div>
               </div>
 
-              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={formData.description}
+                <label htmlFor="d-desc" className={labelCls}>Description</label>
+                <textarea id="d-desc" rows="3" value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Brief description of the discount"
-                />
+                  className={inputCls} placeholder="Brief description of the discount" />
               </div>
 
-              {/* Applicable Categories */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Applicable Categories</label>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  <label className="flex items-center">
+                <span className={labelCls}>Applicable Categories</span>
+                <div className="max-h-32 space-y-2 overflow-y-auto rounded-[10px] border border-border bg-surface p-3">
+                  <label className="flex items-center gap-2 text-sm text-ink">
                     <input
                       type="checkbox"
                       checked={formData.applicableCategories.includes('all')}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData({ ...formData, applicableCategories: ['all'] });
-                        } else {
-                          setFormData({ ...formData, applicableCategories: [] });
-                        }
-                      }}
-                      className="mr-2 text-orange-500 focus:ring-orange-500"
+                      onChange={(e) =>
+                        setFormData({ ...formData, applicableCategories: e.target.checked ? ['all'] : [] })
+                      }
+                      className="accent-[var(--primary)]"
                     />
                     All Categories
                   </label>
-                  {categories.categories && categories.categories.map((category) => (
-                    <label key={category._id} className="flex items-center">
+                  {categories.map((category) => (
+                    <label key={category._id} className="flex items-center gap-2 text-sm text-ink">
                       <input
                         type="checkbox"
                         checked={formData.applicableCategories.includes(category._id)}
@@ -621,16 +452,16 @@ const Discounts = () => {
                               ...formData,
                               applicableCategories: formData.applicableCategories.includes('all')
                                 ? [category._id]
-                                : [...formData.applicableCategories.filter(c => c !== 'all'), category._id]
+                                : [...formData.applicableCategories.filter((c) => c !== 'all'), category._id],
                             });
                           } else {
                             setFormData({
                               ...formData,
-                              applicableCategories: formData.applicableCategories.filter(c => c !== category._id)
+                              applicableCategories: formData.applicableCategories.filter((c) => c !== category._id),
                             });
                           }
                         }}
-                        className="mr-2 text-orange-500 focus:ring-orange-500"
+                        className="accent-[var(--primary)]"
                         disabled={formData.applicableCategories.includes('all')}
                       />
                       {category.name}
@@ -639,38 +470,30 @@ const Discounts = () => {
                 </div>
               </div>
 
-              {/* Status */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
+                <label htmlFor="d-status" className={labelCls}>Status</label>
+                <select id="d-status" value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })} className={inputCls}>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
 
-              {/* Footer */}
-              <div className="flex justify-end space-x-3 pt-4">
+              <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    resetForm();
-                  }}
+                  onClick={() => { setShowModal(false); resetForm(); }}
                   disabled={loading}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 border border-gray-300 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                  className="rounded-[10px] border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-raised disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-orange-500 border border-transparent rounded-md hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
+                  className="rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
                 >
-                  {loading ? 'Saving...' : editingDiscount ? 'Update' : 'Add'} Discount
+                  {loading ? 'Saving…' : editingDiscount ? 'Update Discount' : 'Add Discount'}
                 </button>
               </div>
             </form>

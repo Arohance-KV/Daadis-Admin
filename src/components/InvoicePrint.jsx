@@ -3,7 +3,6 @@ import { productsAPI, categoriesAPI } from '../utils/api';
 
 const InvoicePrint = ({ order, invoiceNumber }) => {
   const [productsData, setProductsData] = useState({});
-  const [loading, setLoading] = useState(true);
 
   // Fetch product and category details for HSN codes
   useEffect(() => {
@@ -51,25 +50,13 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
         setProductsData(productDataMap);
       } catch (error) {
         console.error('Error fetching product details:', error);
-      } finally {
-        setLoading(false);
       }
     };
 
     if (order.items && order.items.length > 0) {
       fetchProductDetails();
-    } else {
-      setLoading(false);
     }
   }, [order]);
-
-  // Calculate tax based on HSN code
-  const calculateTax = (unitPrice, hsn) => {
-    if (hsn === '21069099') {
-      return unitPrice - (unitPrice / 1.05);
-    }
-    return 0; // 0% for other HSN codes
-  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
@@ -79,12 +66,8 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
     });
   };
 
-  const formatAddress = (address) => {
-    return `${address.addressLine1}${address.addressLine2 ? ', ' + address.addressLine2 : ''}, ${address.city}, ${address.state} ${address.pinCode}`;
-  };
-
   return (
-    <div className="bg-white p-8 max-w-4xl mx-auto print:p-4" style={{ fontFamily: 'Arial, sans-serif' }}>
+    <div className="bg-white p-8 max-w-4xl mx-auto print:p-4" style={{ fontFamily: 'Arial, sans-serif', color: '#000' }}>
       <style>{`
         @media print {
           /* Hide everything except the invoice */
@@ -218,15 +201,12 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
           <table className="w-full border-collapse border border-gray-800 text-xs">
             <thead>
               <tr className="bg-gray-100">
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold">S.No</th>
-                <th className="border border-gray-800 px-2 py-2 text-left font-bold">Product Name</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold">Hsn</th>
+                <th className="border border-gray-800 px-2 py-2 text-left font-bold">Product</th>
                 <th className="border border-gray-800 px-2 py-2 text-center font-bold">Qty</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Discount</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Mrp</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Taxable Value</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Cgst/Sgst (Igst %)</th>
-                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Total (Including Tax)</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold">HSN Code</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">MRP</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Disc Value</th>
+                <th className="border border-gray-800 px-2 py-2 text-center font-bold whitespace-nowrap">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -234,58 +214,26 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
                 const productId = item.product || item.productId;
                 const productInfo = productsData[productId];
                 const hsn = productInfo?.hsn || 'N/A';
-                // Calculate effective unit price from the total (which includes discounts)
-                const effectiveUnitPrice = item.itemTotal > 0 ? (item.itemTotal / item.quantity) : item.priceAtPurchase;
 
                 // Calculate discount amount
                 let discountAmount = 0;
-                // Check if we have priceAtPurchase to compare against (it represents the original unit price)
                 if (item.priceAtPurchase && item.itemTotal) {
                   const originalTotal = item.priceAtPurchase * item.quantity;
                   discountAmount = originalTotal - item.itemTotal;
-                  // Ensure we don't show negative discounts (just in case)
                   if (discountAmount < 0) discountAmount = 0;
                 }
 
-                const unitTax = calculateTax(effectiveUnitPrice, hsn);
-                const taxableValue = effectiveUnitPrice - unitTax;
-                const totalWithTax = item.itemTotal;
-
                 return (
                   <tr key={index}>
-                    <td className="border border-gray-800 px-2 py-3 text-center">{index + 1}</td>
                     <td className="border border-gray-800 px-2 py-3">
                       <div className="font-semibold">{item.productName}</div>
                       <div className="text-gray-600">SKU: {item.productCode}</div>
-                      {(() => {
-                        const quantityDiscounts = productInfo?.product?.quantityDiscounts;
-                        if (quantityDiscounts && quantityDiscounts.length > 0) {
-                          // Sort discounts by minQuantity in descending order
-                          const sortedDiscounts = [...quantityDiscounts].sort((a, b) => b.minQuantity - a.minQuantity);
-                          // Find the highest applicable discount
-                          const appliedDiscount = sortedDiscounts.find(d => item.quantity >= d.minQuantity);
-
-                          if (appliedDiscount) {
-                            const discountText = appliedDiscount.discountType === 'percentage'
-                              ? `${appliedDiscount.discountValue}% Off`
-                              : `Rs. ${appliedDiscount.discountValue} Off`;
-                            return (
-                              <div className="text-xs text-green-700 font-medium mt-1">
-                                Pack of {appliedDiscount.minQuantity} ({discountText})
-                              </div>
-                            );
-                          }
-                        }
-                        return null;
-                      })()}
                     </td>
-                    <td className="border border-gray-800 px-2 py-3 text-center">{hsn}</td>
                     <td className="border border-gray-800 px-2 py-3 text-center">{item.quantity}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center">{hsn}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {item.priceAtPurchase.toFixed(2)}</td>
                     <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {discountAmount.toFixed(2)}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {effectiveUnitPrice.toFixed(2)}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {taxableValue.toFixed(2)}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">{unitTax.toFixed(2)} | {hsn === '21069099' ? '5.00' : '0.00'}</td>
-                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap">Rs. {totalWithTax.toFixed(2)}</td>
+                    <td className="border border-gray-800 px-2 py-3 text-center whitespace-nowrap font-semibold">Rs. {item.itemTotal.toFixed(2)}</td>
                   </tr>
                 );
               })}

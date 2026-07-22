@@ -7,13 +7,14 @@ import {
   ShoppingCartIcon,
   ClockIcon,
   CheckCircleIcon,
-  ArchiveBoxIcon,
   ExclamationTriangleIcon,
   BanknotesIcon,
   ShoppingBagIcon,
   TagIcon,
   GiftIcon,
-  SparklesIcon,
+  CubeIcon,
+  ArrowUpRightIcon,
+  ArrowDownRightIcon,
 } from '@heroicons/react/24/outline';
 
 import {
@@ -38,67 +39,100 @@ import {
   kpis,
   inventoryStatus,
   ordersSpike,
+  fillSpikeDays,
+  recentOrders,
   skuSales,
   customers,
   statusBreakdown,
-  paymentSplit,
   topProducts,
+  productPerformance,
 } from '../lib/dashboardData';
-import { toCSV } from '../lib/csv';
+import { useCountUp } from '../lib/useCountUp';
+import { RANGE_OPTIONS, localISO, boundsFor, prevOf, inRange, rangeLabel } from '../lib/dateRange';
+import RangeTabs, { CustomDates } from '../ui/range-tabs';
 import StatCard from '../ui/stat-card';
+import Badge from '../ui/badge';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import Skeleton from '../ui/skeleton';
 import EmptyState from '../ui/empty-state';
 
-// Brand palette constants
 const C = { primary: '#f59e0b', accent: '#fb923c' };
-
-// Status colour map for PieChart cells
 const STATUS_COLORS = ['#f59e0b', '#fb923c', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#6b7280'];
-const PAYMENT_COLORS = ['#f59e0b', '#fb923c', '#10b981', '#3b82f6'];
+const STATUS_TONES = {
+  pending: 'warn',
+  processing: 'info',
+  shipped: 'info',
+  delivered: 'success',
+  cancelled: 'danger',
+  failed: 'danger',
+  returned: 'danger',
+};
 
-// Quick-format helpers
 const inr = (n) => '₹' + Math.round(n).toLocaleString('en-IN');
+const shortDate = (iso) =>
+  new Date(iso.length === 10 ? iso + 'T00:00:00' : iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 
-// Time-range helpers (unchanged from original)
-const getDateRange = (range, orders) => {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  switch (range) {
-    case 'today':
-      return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
-    case 'week': {
-      const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return { start: weekStart, end: now };
-    }
-    case 'month': {
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      return { start: monthStart, end: now };
-    }
-    case 'annual': {
-      const yearStart = new Date(today.getFullYear(), 0, 1);
-      return { start: yearStart, end: now };
-    }
-    case 'all': {
-      const earliest = orders.length > 0
-        ? new Date(Math.min(...orders.map((o) => new Date(o.createdAt))))
-        : new Date('2020-01-01');
-      return { start: earliest, end: now };
-    }
-    default:
-      return { start: today, end: new Date(today.getTime() + 24 * 60 * 60 * 1000) };
+// % change vs the previous period of equal length; null when no baseline
+const deltaOf = (cur, prev) => {
+  if (prev <= 0) return null;
+  const p = ((cur - prev) / prev) * 100;
+  return { dir: p > 0.05 ? 'up' : p < -0.05 ? 'down' : 'flat', pct: p };
+};
+
+const DeltaLine = ({ delta }) => {
+  if (!delta) return <p className="mt-1 text-xs text-muted">no previous data to compare</p>;
+  const tone = delta.dir === 'up' ? 'text-success' : delta.dir === 'down' ? 'text-danger' : 'text-muted';
+  const Arrow = delta.dir === 'down' ? ArrowDownRightIcon : ArrowUpRightIcon;
+  return (
+    <p className={`mt-1 inline-flex items-center gap-1 text-xs font-medium ${tone}`}>
+      <Arrow className="h-3.5 w-3.5" />
+      {delta.pct >= 0 ? '+' : ''}{delta.pct.toFixed(1)}% vs previous period
+    </p>
+  );
+};
+
+// KPI card with its own independent range filter (Revenue / Orders)
+const FilteredKpiCard = ({ label, icon, range, onChange, value, prevValue, format = (n) => Math.round(n).toLocaleString('en-IN'), loading }) => {
+  const Icon = icon; // uppercase alias so core no-unused-vars (no react plugin) doesn't flag the param
+  const animated = useCountUp(loading ? 0 : value);
+  if (loading) {
+    return (
+      <Card className="p-5">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="mt-3 h-8 w-28" />
+      </Card>
+    );
   }
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="rounded-[10px] bg-primary/10 p-1.5 text-primary"><Icon className="h-4 w-4" /></span>
+          <p className="text-sm text-muted">{label}</p>
+        </div>
+        <select
+          value={range.key}
+          onChange={(e) => onChange({ ...range, key: e.target.value })}
+          aria-label={`${label} date range`}
+          className="rounded-[8px] border border-border bg-surface px-1.5 py-1 text-[11px] font-medium text-muted focus:outline-none focus:ring-2 focus:ring-primary/50"
+        >
+          {RANGE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
+      </div>
+      <p className="mt-3 font-display text-3xl font-semibold tabular-nums text-ink">{format(animated)}</p>
+      <DeltaLine delta={deltaOf(value, prevValue)} />
+      {range.key === 'custom' && <div className="mt-3"><CustomDates range={range} onChange={onChange} /></div>}
+    </Card>
+  );
 };
 
-const TIME_RANGE_LABELS = {
-  today: "Today",
-  week: "This Week",
-  month: "This Month",
-  annual: "Annual",
-  all: "All (Overall)",
+const tooltipStyle = {
+  borderRadius: '12px',
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  fontSize: '12px',
 };
 
-// Quick Actions section
 const QuickActions = ({ navigate }) => {
   const actions = [
     { label: 'Add Product', icon: ShoppingBagIcon, action: () => navigate('/products', { state: { openAddModal: true } }) },
@@ -111,7 +145,9 @@ const QuickActions = ({ navigate }) => {
       <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {actions.map(({ label, icon: Icon, action }) => (
+          {actions.map(({ label, icon, action }) => {
+            const Icon = icon;
+            return (
             <button
               key={label}
               onClick={action}
@@ -120,7 +156,8 @@ const QuickActions = ({ navigate }) => {
               <Icon className="h-6 w-6 text-muted group-hover:text-primary transition-colors" />
               <span className="text-xs font-medium text-muted group-hover:text-primary transition-colors">{label}</span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
@@ -131,8 +168,6 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Redux state — read the isolated "all" collections so the paginated
-  // Orders/Products pages keep their own state untouched.
   const orders = useSelector((state) => state.orders.allOrders);
   const products = useSelector((state) => state.products.allProducts);
   const ordersLoading = useSelector((state) => state.orders.allLoading);
@@ -143,81 +178,57 @@ const Dashboard = () => {
   const loading = ordersLoading || productsLoading;
   const error = ordersError || productsError;
 
-  // Time range filter (kept identical to original)
-  const [timeRange, setTimeRange] = useState('today');
+  const todayStr = localISO(new Date());
+  // Global range drives charts + tables; revenue and orders KPIs have their own.
+  const [range, setRange] = useState({ key: '7d', from: todayStr, to: todayStr });
+  const [revRange, setRevRange] = useState({ key: '7d', from: todayStr, to: todayStr });
+  const [ordRange, setOrdRange] = useState({ key: '7d', from: todayStr, to: todayStr });
 
-  // Fetch ALL data on mount (no pagination limits)
   useEffect(() => {
     dispatch(fetchAllProducts());
     dispatch(fetchAllOrders());
   }, [dispatch]);
 
-  // Time-filtered orders (same logic as original)
-  const { start, end } = getDateRange(timeRange, orders);
-  const filteredOrders = orders.filter((o) => {
-    const d = new Date(o.createdAt);
-    return d >= start && d <= end;
-  });
+  // Global-range slices
+  const gb = boundsFor(range);
+  const filtered = inRange(orders, gb);
+  const prevFiltered = inRange(orders, prevOf(gb));
+  const k = kpis(filtered, products);
+  const kPrev = kpis(prevFiltered, products);
 
-  // KPI aggregations — products always all-data; orders time-filtered
-  const k = kpis(filteredOrders, products);
+  // Independent KPI slices
+  const rb = boundsFor(revRange);
+  const revenueNow = inRange(orders, rb).reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const revenuePrev = inRange(orders, prevOf(rb)).reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const ob = boundsFor(ordRange);
+  const ordersNow = inRange(orders, ob).length;
+  const ordersPrev = inRange(orders, prevOf(ob)).length;
 
-  // Inventory — always from full products list (not time-filtered)
   const inv = inventoryStatus(products);
+  const spike = fillSpikeDays(ordersSpike(filtered), gb.start, gb.end);
+  const statusData = statusBreakdown(filtered);
+  const topProdData = topProducts(filtered).filter((p) => p.sales > 0);
+  const skus = skuSales(filtered).slice(0, 8);
+  const custs = customers(filtered);
+  const latest = recentOrders(orders, 8);
 
-  // Chart data from real (time-filtered) data
-  const spike = ordersSpike(filteredOrders);
-  const statusData = statusBreakdown(filteredOrders);
-  const payData = paymentSplit(filteredOrders);
-  const topProdData = topProducts(filteredOrders);
-
-  // SKU sales — top 8
-  const skus = skuSales(filteredOrders).slice(0, 8);
-
-  // Customers — full list for CSV, top 8 for display
-  const custs = customers(filteredOrders);
-
-  // CSV download handler
-  const downloadCustomersCsv = () => {
-    const csv = toCSV(custs, [
-      { key: 'name', label: 'Name' },
-      { key: 'phone', label: 'Phone' },
-      { key: 'orders', label: 'Orders' },
-      { key: 'totalSpent', label: 'Total Spent' },
-      { key: 'lastOrder', label: 'Last Order' },
-    ]);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'daadis-customers.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Product performance — whole catalogue, all-time (not range-scoped, so a
+  // slow product isn't mislabelled just because the current window is short).
+  const perf = productPerformance(orders, products);
+  const bestSellers = perf.filter((p) => p.unitsSold > 0).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+  const underperformers = perf.filter((p) => p.unitsSold === 0).slice(0, 8);
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
+      {/* Page header with global range control */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-muted">Welcome back — here's your {TIME_RANGE_LABELS[timeRange]} overview</p>
+          <p className="mt-0.5 text-sm text-muted">Showing {rangeLabel(range).toLowerCase()} · charts and tables follow this range</p>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
-            className="rounded-[10px] border border-border bg-surface px-3 py-1.5 text-sm text-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          >
-            {Object.entries(TIME_RANGE_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-          <SparklesIcon className="h-5 w-5 text-primary animate-pulse" />
-        </div>
+        <RangeTabs range={range} onChange={setRange} />
       </div>
 
-      {/* Error state */}
       {error && (
         <EmptyState
           title="Couldn't load dashboard"
@@ -226,10 +237,24 @@ const Dashboard = () => {
         />
       )}
 
-      {/* KPI row */}
+      {/* Primary KPIs — Revenue & Orders carry their own range filter */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Revenue" value={k.revenue} format={inr} loading={loading} icon={CurrencyRupeeIcon} />
-        <StatCard label="Total Orders" value={k.totalOrders} loading={loading} icon={ShoppingCartIcon} />
+        <FilteredKpiCard
+          label="Revenue" icon={CurrencyRupeeIcon} format={inr} loading={loading}
+          range={revRange} onChange={setRevRange} value={revenueNow} prevValue={revenuePrev}
+        />
+        <FilteredKpiCard
+          label="Orders" icon={ShoppingCartIcon} loading={loading}
+          range={ordRange} onChange={setOrdRange} value={ordersNow} prevValue={ordersPrev}
+        />
+        <StatCard label="Packets Sold" value={k.packets} loading={loading} icon={CubeIcon}
+          delta={(() => { const d = deltaOf(k.packets, kPrev.packets); return d && { dir: d.dir, label: `${d.pct >= 0 ? '+' : ''}${d.pct.toFixed(1)}% vs previous period` }; })()} />
+        <StatCard label="Avg Order Value" value={k.aov} format={inr} loading={loading} icon={BanknotesIcon} />
+      </div>
+
+      {/* Secondary KPIs */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard label="Total Products" value={k.totalProducts} loading={loading} icon={ShoppingBagIcon} />
         <button
           type="button"
           className="text-left rounded-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
@@ -241,71 +266,26 @@ const Dashboard = () => {
         <button
           type="button"
           className="text-left rounded-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-          onClick={() => navigate('/orders?status=delivered')}
-          aria-label="View delivered orders"
+          onClick={() => navigate('/orders?status=completed')}
+          aria-label="View completed orders"
         >
-          <StatCard label="Delivered" value={k.delivered} loading={loading} icon={CheckCircleIcon} />
+          {/* shipped counts as completed — delivered is rarely updated manually */}
+          <StatCard label="Completed" value={k.completed} loading={loading} icon={CheckCircleIcon} />
         </button>
-        <StatCard label="Total Products" value={k.totalProducts} loading={loading} icon={ShoppingBagIcon} />
-        <StatCard label="Avg Order Value" value={k.aov} format={inr} loading={loading} icon={BanknotesIcon} />
       </div>
 
-      {/* Inventory Status card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Inventory Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-8" />
-              <Skeleton className="h-8" />
-              <Skeleton className="h-8" />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-[10px] border border-border bg-surface/50 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="h-2.5 w-2.5 rounded-full bg-success" />
-                  <span className="text-sm font-medium text-ink">In Stock</span>
-                </div>
-                <span className="text-sm font-semibold text-success">{inv.inStock}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-[10px] border border-border bg-surface/50 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="h-2.5 w-2.5 rounded-full bg-warn" />
-                  <span className="text-sm font-medium text-ink">Low Stock</span>
-                </div>
-                <span className="text-sm font-semibold text-warn">{inv.lowStock}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-[10px] border border-border bg-surface/50 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="h-2.5 w-2.5 rounded-full bg-danger" />
-                  <span className="text-sm font-medium text-ink">Out of Stock</span>
-                </div>
-                <span className="text-sm font-semibold text-danger">{inv.outOfStock}</span>
-              </div>
-              <button
-                onClick={() => navigate('/products')}
-                className="mt-1 w-full rounded-[10px] border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
-              >
-                Manage Inventory
-              </button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Charts row 1: Orders Spike combo + Order status donut */}
+      {/* Order Spike (value + packets) & Order Status */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Orders Spike – spans 2 cols */}
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Orders Spike</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Order Spike</CardTitle>
+            <p className="mt-0.5 text-xs text-muted">Order value (₹) and packets sold per day · {rangeLabel(range)}</p>
+          </CardHeader>
           <CardContent>
             {loading ? (
               <Skeleton className="h-[280px]" />
-            ) : spike.length === 0 ? (
-              <EmptyState title="No data in this range" />
+            ) : spike.every((d) => d.revenue === 0 && d.packets === 0) ? (
+              <EmptyState title="No orders in this range" />
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={spike} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -317,6 +297,7 @@ const Dashboard = () => {
                   </defs>
                   <XAxis
                     dataKey="date"
+                    tickFormatter={shortDate}
                     tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
                     tickLine={false}
                     axisLine={false}
@@ -329,7 +310,7 @@ const Dashboard = () => {
                     tickFormatter={(v) => '₹' + (v >= 1000 ? Math.round(v / 1000) + 'k' : v)}
                   />
                   <YAxis
-                    yAxisId="cnt"
+                    yAxisId="pkt"
                     orientation="right"
                     tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
                     tickLine={false}
@@ -337,30 +318,29 @@ const Dashboard = () => {
                     allowDecimals={false}
                   />
                   <Tooltip
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)',
-                      fontSize: '12px',
-                    }}
+                    labelFormatter={shortDate}
+                    formatter={(val, name) => (name === 'Value' ? [inr(val), 'Value'] : [val, name])}
+                    contentStyle={tooltipStyle}
                   />
                   <Legend wrapperStyle={{ fontSize: '11px' }} />
-                  <Bar yAxisId="cnt" dataKey="count" name="Orders" fill={C.accent} radius={[4, 4, 0, 0]} barSize={18} />
-                  <Area yAxisId="rev" type="monotone" dataKey="revenue" name="Revenue" stroke={C.primary} strokeWidth={2} fill="url(#revGrad)" dot={false} />
+                  <Bar yAxisId="pkt" dataKey="packets" name="Packets" fill={C.accent} radius={[4, 4, 0, 0]} barSize={18} />
+                  <Area yAxisId="rev" type="monotone" dataKey="revenue" name="Value" stroke={C.primary} strokeWidth={2} fill="url(#revGrad)" dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
-        {/* Order status donut — segments clickable */}
         <Card>
-          <CardHeader><CardTitle>Order Status</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Order Status</CardTitle>
+            <p className="mt-0.5 text-xs text-muted">Click a segment to open those orders</p>
+          </CardHeader>
           <CardContent>
             {loading ? (
               <Skeleton className="h-[280px]" />
             ) : statusData.length === 0 ? (
-              <EmptyState title="No data in this range" />
+              <EmptyState title="No orders in this range" />
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
@@ -380,15 +360,7 @@ const Dashboard = () => {
                       <Cell key={entry.status} fill={STATUS_COLORS[idx % STATUS_COLORS.length]} style={{ cursor: 'pointer' }} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    formatter={(val, name) => [val, name]}
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)',
-                      fontSize: '12px',
-                    }}
-                  />
+                  <Tooltip formatter={(val, name) => [val, name]} contentStyle={tooltipStyle} />
                   <Legend
                     wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
                     formatter={(val) => <span style={{ color: 'var(--color-muted)' }}>{val}</span>}
@@ -400,46 +372,24 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Charts row 2: Top products bar + Payment split donut */}
+      {/* Top products & Inventory */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Top products horizontal bar – spans 2 cols */}
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Top Products by Sales</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Top Performing Products</CardTitle>
+            <p className="mt-0.5 text-xs text-muted">Packets sold · {rangeLabel(range)}</p>
+          </CardHeader>
           <CardContent>
             {loading ? (
               <Skeleton className="h-[260px]" />
-            ) : topProdData.filter((p) => p.sales > 0).length === 0 ? (
-              <EmptyState title="No data in this range" />
+            ) : topProdData.length === 0 ? (
+              <EmptyState title="No sales in this range" />
             ) : (
               <ResponsiveContainer width="100%" height={260}>
-                <BarChart
-                  data={topProdData.filter((p) => p.sales > 0)}
-                  layout="vertical"
-                  margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
-                >
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={110}
-                    tick={{ fontSize: 11, fill: 'var(--color-muted)' }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    formatter={(val) => [val, 'Sales']}
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)',
-                      fontSize: '12px',
-                    }}
-                  />
+                <BarChart data={topProdData} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--color-muted)' }} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: 'var(--color-muted)' }} tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(val) => [val, 'Packets sold']} contentStyle={tooltipStyle} />
                   <Bar dataKey="sales" fill={C.primary} radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -447,138 +397,275 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Payment split donut */}
         <Card>
-          <CardHeader><CardTitle>Payment Methods</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Inventory Status</CardTitle></CardHeader>
           <CardContent>
             {loading ? (
-              <Skeleton className="h-[260px]" />
-            ) : payData.length === 0 ? (
-              <EmptyState title="No data in this range" />
+              <div className="space-y-3">
+                <Skeleton className="h-8" />
+                <Skeleton className="h-8" />
+                <Skeleton className="h-8" />
+              </div>
             ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={payData}
-                    dataKey="count"
-                    nameKey="method"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={3}
-                    cx="50%"
-                    cy="45%"
-                  >
-                    {payData.map((entry, idx) => (
-                      <Cell key={entry.method} fill={PAYMENT_COLORS[idx % PAYMENT_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(val, name) => [val, name]}
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: '1px solid var(--color-border)',
-                      background: 'var(--color-surface)',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
-                    formatter={(val) => <span style={{ color: 'var(--color-muted)' }}>{val}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="space-y-3">
+                {[
+                  { label: 'In Stock', count: inv.inStock, dot: 'bg-success', text: 'text-success' },
+                  { label: 'Low Stock', count: inv.lowStock, dot: 'bg-warn', text: 'text-warn' },
+                  { label: 'Out of Stock', count: inv.outOfStock, dot: 'bg-danger', text: 'text-danger' },
+                ].map(({ label, count, dot, text }) => (
+                  <div key={label} className="flex items-center justify-between rounded-[10px] border border-border bg-surface/50 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+                      <span className="text-sm font-medium text-ink">{label}</span>
+                    </div>
+                    <span className={`text-sm font-semibold tabular-nums ${text}`}>{count}</span>
+                  </div>
+                ))}
+                <button
+                  onClick={() => navigate('/products')}
+                  className="mt-1 w-full rounded-[10px] border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+                >
+                  Manage Inventory
+                </button>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Sales by SKU */}
-      <Card>
-        <CardHeader><CardTitle>Sales by SKU</CardTitle></CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
-            </div>
-          ) : skus.length === 0 ? (
-            <EmptyState title="No sales in this range" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                    <th className="pb-2 pr-4">SKU</th>
-                    <th className="pb-2 pr-4">Product</th>
-                    <th className="pb-2 pr-4 text-right">Qty</th>
-                    <th className="pb-2 text-right">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {skus.map((row) => (
-                    <tr key={row.sku} className="hover:bg-surface/60">
-                      <td className="py-2 pr-4 font-mono text-xs text-muted">{row.sku}</td>
-                      <td className="py-2 pr-4 text-ink">{row.name}</td>
-                      <td className="py-2 pr-4 text-right text-ink">{row.qty}</td>
-                      <td className="py-2 text-right font-medium text-primary">{inr(row.revenue)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Customers */}
+      {/* Recent Orders */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Customers</CardTitle>
+          <div>
+            <CardTitle>Recent Orders</CardTitle>
+            <p className="mt-0.5 text-xs text-muted">Latest 8 orders, all time</p>
+          </div>
           <button
-            onClick={downloadCustomersCsv}
-            disabled={custs.length === 0}
-            className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => navigate('/orders')}
+            className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
           >
-            Download CSV
+            View all
           </button>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
             </div>
-          ) : custs.length === 0 ? (
-            <EmptyState title="No customers in this range" />
+          ) : latest.length === 0 ? (
+            <EmptyState title="No orders yet" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                    <th className="pb-2 pr-4">Name</th>
-                    <th className="pb-2 pr-4">Phone</th>
-                    <th className="pb-2 pr-4 text-right">Orders</th>
-                    <th className="pb-2 text-right">Total Spent</th>
+                    <th className="pb-2 pr-4">Order</th>
+                    <th className="pb-2 pr-4">Date</th>
+                    <th className="pb-2 pr-4">Customer</th>
+                    <th className="pb-2 pr-4 text-right">Packets</th>
+                    <th className="pb-2 pr-4 text-right">Total</th>
+                    <th className="pb-2 text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {custs.slice(0, 8).map((row, i) => (
-                    <tr key={row.phone || row.name + i} className="hover:bg-surface/60">
-                      <td className="py-2 pr-4 font-medium text-ink">{row.name}</td>
-                      <td className="py-2 pr-4 font-mono text-xs text-muted">{row.phone || '—'}</td>
-                      <td className="py-2 pr-4 text-right text-ink">{row.orders}</td>
-                      <td className="py-2 text-right font-medium text-primary">{inr(row.totalSpent)}</td>
+                  {latest.map((o) => (
+                    <tr key={o._id || o.orderNumber} className="hover:bg-surface/60">
+                      <td className="py-2.5 pr-4 font-mono text-xs text-ink">{o.orderNumber || '—'}</td>
+                      <td className="py-2.5 pr-4 text-muted">
+                        {new Date(o.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </td>
+                      <td className="py-2.5 pr-4 font-medium text-ink">{o.shippingAddress?.name || '—'}</td>
+                      <td className="py-2.5 pr-4 text-right tabular-nums text-ink">
+                        {(o.items || []).reduce((q, it) => q + (Number(it.quantity) || 0), 0)}
+                      </td>
+                      <td className="py-2.5 pr-4 text-right font-medium tabular-nums text-primary">{inr(o.total || 0)}</td>
+                      <td className="py-2.5 text-right">
+                        <Badge tone={STATUS_TONES[o.status] || 'neutral'}>{o.status || 'unknown'}</Badge>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {custs.length > 8 && (
-                <p className="mt-2 text-right text-xs text-muted">+{custs.length - 8} more — download CSV for full list</p>
-              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
+      {/* SKU Sales & Customers */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Sales by SKU</CardTitle>
+            <p className="mt-0.5 text-xs text-muted">Top 8 by quantity · {rangeLabel(range)}</p>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+              </div>
+            ) : skus.length === 0 ? (
+              <EmptyState title="No sales in this range" />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                      <th className="pb-2 pr-4">SKU</th>
+                      <th className="pb-2 pr-4">Product</th>
+                      <th className="pb-2 pr-4 text-right">Qty</th>
+                      <th className="pb-2 text-right">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {skus.map((row) => (
+                      <tr key={row.sku} className="hover:bg-surface/60">
+                        <td className="py-2 pr-4 font-mono text-xs text-muted">{row.sku}</td>
+                        <td className="py-2 pr-4 text-ink">{row.name}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-ink">{row.qty}</td>
+                        <td className="py-2 text-right font-medium tabular-nums text-primary">{inr(row.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Top Customers</CardTitle>
+              <p className="mt-0.5 text-xs text-muted">By spend · {rangeLabel(range)}</p>
+            </div>
+            <button
+              onClick={() => navigate('/customers')}
+              className="rounded-[8px] border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+            >
+              View all
+            </button>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+              </div>
+            ) : custs.length === 0 ? (
+              <EmptyState title="No customers in this range" />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                      <th className="pb-2 pr-4">Name</th>
+                      <th className="pb-2 pr-4">Phone</th>
+                      <th className="pb-2 pr-4 text-right">Orders</th>
+                      <th className="pb-2 text-right">Total Spent</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {custs.slice(0, 8).map((row, i) => (
+                      <tr key={row.phone || row.name + i} className="hover:bg-surface/60">
+                        <td className="py-2 pr-4 font-medium text-ink">{row.name}</td>
+                        <td className="py-2 pr-4 font-mono text-xs text-muted">{row.phone || '—'}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-ink">{row.orders}</td>
+                        <td className="py-2 text-right font-medium tabular-nums text-primary">{inr(row.totalSpent)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {custs.length > 8 && (
+                  <p className="mt-2 text-right text-xs text-muted">+{custs.length - 8} more on the Customers page</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Product Analytics — which products sell and which don't (all-time) */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Best Sellers</CardTitle>
+            <p className="mt-0.5 text-xs text-muted">All time — by total revenue</p>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+              </div>
+            ) : bestSellers.length === 0 ? (
+              <EmptyState title="No sales data yet" />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                      <th className="pb-2 pr-4">Product</th>
+                      <th className="pb-2 pr-4 text-right">Units Sold</th>
+                      <th className="pb-2 text-right">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {bestSellers.map((row) => (
+                      <tr key={row.id} className="hover:bg-surface/60">
+                        <td className="py-2 pr-4 font-medium text-ink">{row.name}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-ink">{row.unitsSold}</td>
+                        <td className="py-2 text-right font-medium tabular-nums text-primary">{inr(row.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Underperforming Products</CardTitle>
+            <p className="mt-0.5 text-xs text-muted">All time — zero sales</p>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9" />)}
+              </div>
+            ) : underperformers.length === 0 ? (
+              <div className="rounded-[12px] bg-success-soft p-4 text-center">
+                <p className="text-sm font-medium text-success">Every product has made at least one sale.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                      <th className="pb-2 pr-4">Product</th>
+                      <th className="pb-2 pr-4 text-right">Units Sold</th>
+                      <th className="pb-2 text-right">Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {underperformers.map((row) => (
+                      <tr key={row.id} className="hover:bg-surface/60">
+                        <td className="py-2 pr-4 font-medium text-ink">{row.name}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-warn">0</td>
+                        <td className="py-2 text-right font-medium tabular-nums text-ink">{row.stock}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-3 text-xs text-muted">
+                  Consider a promotion or delisting these.
+                  <button onClick={() => navigate('/products')} className="ml-1 font-medium text-primary hover:underline">Manage products.</button>
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <QuickActions navigate={navigate} />
     </div>
   );

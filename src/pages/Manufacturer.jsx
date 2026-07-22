@@ -14,21 +14,29 @@ import {
   PencilIcon,
   TrashIcon,
   XMarkIcon,
+  XCircleIcon,
+  MagnifyingGlassIcon,
+  BuildingOfficeIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+
+import { cn } from '../lib/utils';
+import { Card, CardContent } from '../ui/card';
+import Skeleton from '../ui/skeleton';
+import EmptyState from '../ui/empty-state';
+
+const inputCls =
+  'w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/50';
+const labelCls = 'mb-1 block text-sm font-medium text-ink';
 
 const Manufacturer = () => {
   const dispatch = useDispatch();
-  const { manufacturers, loading, error, success } = useSelector(
-    (state) => state.manufacturer
-  );
+  const { manufacturers, loading, error, success } = useSelector((state) => state.manufacturer);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingManufacturer, setEditingManufacturer] = useState(null);
-  const [formData, setFormData] = useState({
-    code: '',
-    name: '',        // ADDED name field
-    address: '',
-  });
+  const [formData, setFormData] = useState({ code: '', name: '', address: '' });
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -39,18 +47,14 @@ const Manufacturer = () => {
     if (success) {
       setIsModalOpen(false);
       setEditingManufacturer(null);
-      setFormData({ code: '', name: '', address: '' });  // UPDATED: Reset with name
-      setTimeout(() => {
-        dispatch(clearSuccess());
-      }, 3000);
+      setFormData({ code: '', name: '', address: '' });
+      setTimeout(() => dispatch(clearSuccess()), 3000);
     }
   }, [success, dispatch]);
 
   useEffect(() => {
     if (error) {
-      setTimeout(() => {
-        dispatch(clearError());
-      }, 5000);
+      setTimeout(() => dispatch(clearError()), 5000);
     }
   }, [error, dispatch]);
 
@@ -59,12 +63,12 @@ const Manufacturer = () => {
       setEditingManufacturer(manufacturer);
       setFormData({
         code: manufacturer.code,
-        name: manufacturer.name || '',     // ADDED: Include name
+        name: manufacturer.name || '',
         address: manufacturer.address,
       });
     } else {
       setEditingManufacturer(null);
-      setFormData({ code: '', name: '', address: '' });  // UPDATED: Reset with name
+      setFormData({ code: '', name: '', address: '' });
     }
     setIsModalOpen(true);
   };
@@ -72,33 +76,21 @@ const Manufacturer = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingManufacturer(null);
-    setFormData({ code: '', name: '', address: '' });  // UPDATED: Reset with name
+    setFormData({ code: '', name: '', address: '' });
     dispatch(clearCurrentManufacturer());
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // UPDATED: Validation now includes name
-    if (!formData.code.trim() || !formData.name.trim() || !formData.address.trim()) {
-      return;
-    }
+    if (!formData.code.trim() || !formData.name.trim() || !formData.address.trim()) return;
 
     if (editingManufacturer) {
-      await dispatch(
-        updateManufacturer({
-          id: editingManufacturer._id,
-          manufacturerData: formData,
-        })
-      );
+      await dispatch(updateManufacturer({ id: editingManufacturer._id, manufacturerData: formData }));
     } else {
       await dispatch(createManufacturer(formData));
     }
@@ -110,220 +102,192 @@ const Manufacturer = () => {
     }
   };
 
-  // UPDATED: Filter now includes name field
   const filteredManufacturers = manufacturers.filter(
-    (manufacturer) =>
-      manufacturer.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (manufacturer.name && manufacturer.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      manufacturer.address.toLowerCase().includes(searchQuery.toLowerCase())
+    (m) =>
+      m.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (m.name && m.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      m.address.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const formatDate = (d) =>
+    new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
   return (
-    <div className="p-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Manufacturers</h1>
-        <p className="text-gray-600">Manage manufacturer information</p>
-      </div>
-
-      {/* Success Message */}
-      {success && (
-        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
-          Operation completed successfully!
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-ink">Manufacturers</h1>
+          <p className="mt-0.5 text-sm text-muted">Manage manufacturer information for labelling</p>
         </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      {/* Search and Add Button */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-center">
-        <input
-          type="text"
-          placeholder="Search manufacturers..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full sm:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
         <button
           onClick={() => handleOpenModal()}
-          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+          className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90"
         >
-          <PlusIcon className="w-5 h-5" />
+          <PlusIcon className="h-5 w-5" />
           Add Manufacturer
         </button>
       </div>
 
-      {/* Manufacturers Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600">Loading manufacturers...</p>
+      {success && (
+        <div className="flex items-center gap-2 rounded-[12px] border border-success/30 bg-success-soft px-4 py-3 text-sm text-success">
+          <CheckCircleIcon className="h-5 w-5 shrink-0" />
+          Operation completed successfully
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-[12px] border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          <ExclamationTriangleIcon className="h-5 w-5 shrink-0" />
+          <span>{String(error)}</span>
+          <button onClick={() => dispatch(clearError())} className="ml-auto" aria-label="Dismiss error">
+            <XCircleIcon className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
+      {/* List */}
+      <Card>
+        <CardContent>
+          <div className="relative mb-4 w-full sm:max-w-xs">
+            <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <input
+              type="search"
+              placeholder="Search code, name or address…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={cn(inputCls, 'pl-9')}
+            />
           </div>
-        ) : filteredManufacturers.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            {searchQuery
-              ? 'No manufacturers found matching your search.'
-              : 'No manufacturers found. Add your first manufacturer!'}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Code
-                  </th>
-                  {/* ADDED: Name column header */}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Address
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created At
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredManufacturers.map((manufacturer) => (
-                  <tr key={manufacturer._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-gray-900">
-                        {manufacturer.code}
-                      </span>
-                    </td>
-                    {/* ADDED: Name column data */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-gray-800">
-                        {manufacturer.name || '-'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-700">
-                        {manufacturer.address}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(manufacturer.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleOpenModal(manufacturer)}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        <PencilIcon className="w-5 h-5 inline" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(manufacturer._id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <TrashIcon className="w-5 h-5 inline" />
-                      </button>
-                    </td>
+
+          {loading && manufacturers.length === 0 ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
+            </div>
+          ) : filteredManufacturers.length === 0 ? (
+            <EmptyState
+              title={searchQuery ? 'No manufacturers match' : 'No manufacturers yet'}
+              message={searchQuery ? 'Try a different search term.' : 'Add your first manufacturer to get started.'}
+              icon={BuildingOfficeIcon}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                    <th className="pb-2 pr-4">Code</th>
+                    <th className="pb-2 pr-4">Name</th>
+                    <th className="pb-2 pr-4">Address</th>
+                    <th className="pb-2 pr-4">Created</th>
+                    <th className="pb-2 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredManufacturers.map((manufacturer) => (
+                    <tr key={manufacturer._id} className="hover:bg-surface/60">
+                      <td className="py-2.5 pr-4 font-mono text-xs font-medium text-ink">{manufacturer.code}</td>
+                      <td className="py-2.5 pr-4 font-medium text-ink">{manufacturer.name || '—'}</td>
+                      <td className="max-w-sm py-2.5 pr-4 text-muted">{manufacturer.address}</td>
+                      <td className="py-2.5 pr-4 whitespace-nowrap text-muted">{formatDate(manufacturer.createdAt)}</td>
+                      <td className="py-2.5 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenModal(manufacturer)}
+                            className="rounded-[8px] p-1.5 text-muted transition-colors hover:bg-primary/10 hover:text-primary"
+                            title="Edit manufacturer"
+                            aria-label={`Edit ${manufacturer.name || manufacturer.code}`}
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(manufacturer._id)}
+                            className="rounded-[8px] p-1.5 text-muted transition-colors hover:bg-danger-soft hover:text-danger"
+                            title="Delete manufacturer"
+                            aria-label={`Delete ${manufacturer.name || manufacturer.code}`}
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-[18px] border border-border bg-surface shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <h2 className="font-display text-lg font-semibold text-ink">
                 {editingManufacturer ? 'Edit Manufacturer' : 'Add Manufacturer'}
               </h2>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <XMarkIcon className="w-6 h-6" />
+              <button onClick={handleCloseModal} className="text-muted transition-colors hover:text-ink" aria-label="Close">
+                <XMarkIcon className="h-6 w-6" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleSubmit} className="p-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Code <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="code"
-                    value={formData.code}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., SMS"
-                  />
-                </div>
-
-                {/* ADDED: Name input field */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., SMS traders"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Address <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    required
-                    rows="4"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter manufacturer address"
-                  />
-                </div>
+            <form onSubmit={handleSubmit} className="space-y-4 p-6">
+              <div>
+                <label htmlFor="m-code" className={labelCls}>Code <span className="text-danger">*</span></label>
+                <input
+                  id="m-code"
+                  type="text"
+                  name="code"
+                  value={formData.code}
+                  onChange={handleInputChange}
+                  required
+                  className={cn(inputCls, 'font-mono')}
+                  placeholder="e.g. SMS"
+                />
               </div>
 
-              {/* Modal Footer */}
-              <div className="flex gap-3 mt-6">
+              <div>
+                <label htmlFor="m-name" className={labelCls}>Name <span className="text-danger">*</span></label>
+                <input
+                  id="m-name"
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  className={inputCls}
+                  placeholder="e.g. SMS Traders"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="m-address" className={labelCls}>Address <span className="text-danger">*</span></label>
+                <textarea
+                  id="m-address"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  required
+                  rows="4"
+                  className={inputCls}
+                  placeholder="Enter manufacturer address"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex-1 rounded-[10px] border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-raised"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {loading
-                    ? 'Saving...'
-                    : editingManufacturer
-                    ? 'Update'
-                    : 'Create'}
+                  {loading ? 'Saving…' : editingManufacturer ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>

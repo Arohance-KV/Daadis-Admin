@@ -1,124 +1,92 @@
 // pages/categories.jsx
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
-import { 
+import {
   fetchCategories,
-  createCategory, 
-  updateCategory, 
-  deleteCategory, 
-  clearError
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  clearError,
 } from '../redux/slices/categoriesSlice';
-import { 
-  PlusIcon, 
-  PencilIcon, 
+import {
+  PlusIcon,
+  PencilIcon,
   TrashIcon,
   EyeIcon,
+  EyeSlashIcon,
   TagIcon,
+  MagnifyingGlassIcon,
+  XCircleIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
+import { cn } from '../lib/utils';
+import Badge from '../ui/badge';
+import { Card } from '../ui/card';
+import Skeleton from '../ui/skeleton';
+import EmptyState from '../ui/empty-state';
+
+const inputCls =
+  'w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/50';
+const labelCls = 'mb-1 block text-sm font-medium text-ink';
+
+const EMPTY_FORM = { name: '', description: '', imageFile: null, imagePreview: '', hsn: '' };
 
 const Categories = () => {
   const dispatch = useDispatch();
-  const { categories, loading, error } = useSelector(state => state.categories);
-  
+  const { categories, loading, error } = useSelector((state) => state.categories);
+
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    imageFile: null,   
-    imagePreview: '',  
-    hsn: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState({});
+  const [search, setSearch] = useState('');
 
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Handle navigation from Dashboard
+  // Dashboard quick-action deep link
   useEffect(() => {
     if (location.state?.openAddModal) {
       setShowModal(true);
-      // Clear the state to prevent reopening on refresh
       navigate(location.pathname, { replace: true });
     }
   }, [location.state, navigate, location.pathname]);
 
-
-
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        await dispatch(fetchCategories()).unwrap();
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      }
-    };
-    fetchData();
+    dispatch(fetchCategories());
   }, [dispatch]);
 
   const validateForm = () => {
     const errors = {};
-    if (!formData.name || formData.name.trim() === '') {
-      errors.name = 'Category name is required';
-    }
-    if (!formData.imageFile && !formData.imagePreview) {
-      errors.image = 'Category image is required';
-    }
+    if (!formData.name || formData.name.trim() === '') errors.name = 'Category name is required';
+    if (!formData.imageFile && !formData.imagePreview) errors.image = 'Category image is required';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  console.log("🔎 Submitting category form with data:", formData);
+    const formDataObj = new FormData();
+    formDataObj.append('name', formData.name);
+    formDataObj.append('description', formData.description);
+    formDataObj.append('hsn', formData.hsn || '');
+    if (formData.imageFile) formDataObj.append('image', formData.imageFile);
 
-  // Validate before sending
-  if (!validateForm()) {
-    console.warn("⚠️ Validation failed:", formErrors);
-    return;
-  }
-
-  const formDataObj = new FormData();
-  formDataObj.append("name", formData.name);
-  formDataObj.append("description", formData.description);
-  formDataObj.append("hsn", formData.hsn || "");
-  if (formData.imageFile) {
-    formDataObj.append("image", formData.imageFile);
-  }
-
-  // Log all FormData keys/values before sending
-  console.group("📦 FormData contents");
-  for (let [key, value] of formDataObj.entries()) {
-    if (value instanceof File) {
-      console.log(`${key}: [File] name=${value.name}, type=${value.type}, size=${value.size} bytes`);
-    } else {
-      console.log(`${key}: ${value}`);
+    try {
+      if (editingCategory) {
+        await dispatch(updateCategory({ id: editingCategory._id, categoryData: formDataObj })).unwrap();
+      } else {
+        await dispatch(createCategory(formDataObj)).unwrap();
+      }
+      closeModal();
+    } catch (error) {
+      console.error('Category submission error:', error);
     }
-  }
-  console.groupEnd();
-
-  try {
-    if (editingCategory) {
-      console.log("✏️ Updating category:", editingCategory._id);
-      await dispatch(
-        updateCategory({ id: editingCategory._id, categoryData: formDataObj })
-      ).unwrap();
-    } else {
-      console.log("➕ Creating new category");
-      await dispatch(createCategory(formDataObj)).unwrap();
-    }
-
-    console.log("✅ Category submitted successfully");
-    closeModal();
-  } catch (error) {
-    console.error("❌ Category submission error:", error);
-  }
-};
-
-
+  };
 
   const handleEdit = (category) => {
     setEditingCategory(category);
@@ -126,8 +94,8 @@ const Categories = () => {
       name: category.name || '',
       description: category.description || '',
       imageFile: null,
-      imagePreview: category.image || '', 
-      hsn: category.hsn || ''
+      imagePreview: category.image || '',
+      hsn: category.hsn || '',
     });
     setFormErrors({});
     setShowModal(true);
@@ -137,218 +105,238 @@ const Categories = () => {
     if (window.confirm('Are you sure you want to delete this category?')) {
       try {
         await dispatch(deleteCategory(id)).unwrap();
-        console.log('Category deleted successfully');
       } catch (error) {
         console.error('Failed to delete category:', error);
       }
     }
   };
 
-
-const handleToggleStatus = async (category) => {
-  try {
-    const formData = new FormData();
-    formData.append('name', category.name);
-    formData.append('description', category.description || '');
-    formData.append('hsn', category.hsn || '');
-    formData.append('isActive', (!category.isActive).toString());
-    
-    await dispatch(updateCategory({ 
-      id: category._id, 
-      categoryData: formData
-    })).unwrap();
-    console.log('Category status toggled successfully');
-  } catch (error) {
-    console.error('Failed to toggle category status:', error);
-  }
-};
+  const handleToggleStatus = async (category) => {
+    try {
+      const fd = new FormData();
+      fd.append('name', category.name);
+      fd.append('description', category.description || '');
+      fd.append('hsn', category.hsn || '');
+      fd.append('isActive', (!category.isActive).toString());
+      await dispatch(updateCategory({ id: category._id, categoryData: fd })).unwrap();
+    } catch (error) {
+      console.error('Failed to toggle category status:', error);
+    }
+  };
 
   const closeModal = () => {
     setShowModal(false);
     setEditingCategory(null);
-    setFormData({ name: '', description: '', imageFile: null, imagePreview: '', hsn: '' });
+    setFormData(EMPTY_FORM);
     setFormErrors({});
     dispatch(clearError());
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
-  };
+  const formatDate = (dateString) =>
+    dateString ? new Date(dateString).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
-  if (loading && categories.length === 0) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-500"></div>
-      </div>
-    );
-  }
+  const filtered = categories.filter((c) =>
+    c.name.toLowerCase().includes(search.trim().toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-ink">Categories</h1>
+          <p className="mt-0.5 text-sm text-muted">Organize your products into categories</p>
+        </div>
+        <button
+          onClick={() => { setEditingCategory(null); setFormData(EMPTY_FORM); setFormErrors({}); setShowModal(true); }}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
+        >
+          <PlusIcon className="h-5 w-5" />
+          Add Category
+        </button>
+      </div>
+
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          <p>{error}</p>
-          <button 
-            onClick={() => dispatch(clearError())}
-            className="text-red-500 hover:text-red-700 text-sm underline mt-1"
-          >
-            Dismiss
+        <div className="flex items-center gap-2 rounded-[12px] border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          <ExclamationTriangleIcon className="h-5 w-5 shrink-0" />
+          <span>{String(error)}</span>
+          <button onClick={() => dispatch(clearError())} className="ml-auto" aria-label="Dismiss error">
+            <XCircleIcon className="h-5 w-5" />
           </button>
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
-          <p className="text-gray-600 mt-2">Organize your products into categories</p>
+      {/* Search */}
+      <div className="relative w-full sm:max-w-xs">
+        <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <input
+          type="search"
+          placeholder="Search categories…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className={cn(inputCls, 'pl-9')}
+        />
+      </div>
+
+      {/* Grid */}
+      {loading && categories.length === 0 ? (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-56 rounded-[18px]" />)}
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          disabled={loading}
-          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-        >
-          <PlusIcon className="w-5 h-5" />
-          <span>Add Category</span>
-        </button>
-      </div>
-
-      {/* Categories Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {categories.map((category) => (
-          <div key={category._id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title={search ? 'No categories match' : 'No categories yet'}
+          message={search ? 'Try a different search term.' : 'Create your first category to organize products.'}
+          icon={TagIcon}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((category) => {
+            const active = category.isActive !== false;
+            return (
+              <Card key={category._id} className="overflow-hidden">
+                {/* Image banner */}
+                <div className="h-32 w-full bg-surface-raised">
                   {category.image ? (
-                    <img 
-                      src={category.image} 
-                      alt={category.name}
-                      className="w-6 h-6 object-cover rounded"
-                    />
-                  ) : <TagIcon className="w-6 h-6 text-orange-500" />}
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900">{category.name}</h3>
-                  <span className={`inline-block px-2 py-1 text-xs rounded-full mt-1 ${
-                    category.isActive !== false
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {category.isActive !== false ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-gray-600 mb-4">{category.description || 'No description'}</p>
-
-            <div className="space-y-2 mb-4 text-sm text-gray-500">
-              {category.hsn && <div><span className="font-medium">HSN:</span> {category.hsn}</div>}
-              <div><span className="font-medium">ID:</span> {category._id}</div>
-              <div className="flex justify-between">
-                <div>Created: {formatDate(category.createdAt)}</div>
-                {category.updatedAt && category.updatedAt !== category.createdAt && (
-                  <div>Updated: {formatDate(category.updatedAt)}</div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex space-x-2">
-              <button onClick={() => handleEdit(category)} className="flex-1 bg-blue-50 text-blue-600 px-3 py-2 rounded-lg flex items-center justify-center">
-                <PencilIcon className="w-4 h-4" /><span>Edit</span>
-              </button>
-              <button onClick={() => handleToggleStatus(category)} className="flex-1 bg-yellow-50 text-yellow-600 px-3 py-2 rounded-lg flex items-center justify-center">
-                <EyeIcon className="w-4 h-4" /><span>{category.isActive !== false ? 'Deactivate' : 'Activate'}</span>
-              </button>
-              <button onClick={() => handleDelete(category._id)} className="bg-red-50 text-red-600 px-3 py-2 rounded-lg flex items-center justify-center">
-                <TrashIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                {editingCategory ? 'Edit Category' : 'Add New Category'}
-              </h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    placeholder="e.g. Sweets, Snacks, etc."
-                  />
-                  {formErrors.name && <p className="text-sm text-red-600">{formErrors.name}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <textarea
-                    rows={3}
-                    value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category Image *</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (file) {
-                        setFormData({
-                          ...formData,
-                          imageFile: file,
-                          imagePreview: URL.createObjectURL(file),
-                        });
-                      }
-                    }}
-                    className="w-full"
-                  />
-                  {formErrors.image && <p className="text-sm text-red-600">{formErrors.image}</p>}
-                  {formData.imagePreview && (
-                    <div className="mt-2">
-                      <img src={formData.imagePreview} alt="Preview" className="h-16 w-16 object-cover rounded-lg border" />
+                    <img src={category.image} alt={category.name} className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center">
+                      <TagIcon className="h-10 w-10 text-muted" />
                     </div>
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">HSN Code</label>
-                  <input
-                    type="text"
-                    value={formData.hsn}
-                    onChange={(e) => setFormData({...formData, hsn: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    placeholder="e.g. 17049030"
-                  />
-                </div>
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-display text-lg font-semibold text-ink">{category.name}</h3>
+                    <Badge tone={active ? 'success' : 'danger'}>{active ? 'Active' : 'Inactive'}</Badge>
+                  </div>
 
-                <div className="flex space-x-3 pt-4">
-                  <button type="submit" className="flex-1 bg-orange-500 text-white py-2 px-4 rounded-lg">
-                    {loading ? 'Saving...' : (editingCategory ? 'Update Category' : 'Add Category')}
-                  </button>
-                  <button type="button" onClick={closeModal} className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg">
-                    Cancel
-                  </button>
+                  <p className="mt-1 line-clamp-2 text-sm text-muted">{category.description || 'No description'}</p>
+
+                  <div className="mt-3 flex items-center gap-4 text-xs text-muted">
+                    {category.hsn && <span>HSN <span className="font-mono text-ink">{category.hsn}</span></span>}
+                    <span>Created {formatDate(category.createdAt)}</span>
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => handleEdit(category)}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-border bg-surface px-3 py-2 text-xs font-medium text-ink transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+                    >
+                      <PencilIcon className="h-4 w-4" /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleToggleStatus(category)}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-border bg-surface px-3 py-2 text-xs font-medium text-ink transition-colors hover:border-warn hover:bg-warn-soft hover:text-warn"
+                    >
+                      {active ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                      {active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(category._id)}
+                      className="inline-flex items-center justify-center rounded-[10px] border border-border bg-surface px-3 py-2 text-danger transition-colors hover:border-danger hover:bg-danger-soft"
+                      aria-label={`Delete ${category.name}`}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              </form>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[18px] border border-border bg-surface shadow-xl">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <h2 className="font-display text-lg font-semibold text-ink">
+                {editingCategory ? 'Edit Category' : 'Add New Category'}
+              </h2>
+              <button onClick={closeModal} className="text-muted transition-colors hover:text-ink" aria-label="Close">
+                <XCircleIcon className="h-6 w-6" />
+              </button>
             </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4 p-6">
+              <div>
+                <label htmlFor="cat-name" className={labelCls}>Category Name <span className="text-danger">*</span></label>
+                <input
+                  id="cat-name"
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className={inputCls}
+                  placeholder="e.g. Sweets, Snacks"
+                />
+                {formErrors.name && <p className="mt-1 text-sm text-danger">{formErrors.name}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="cat-desc" className={labelCls}>Description</label>
+                <textarea
+                  id="cat-desc"
+                  rows={3}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="cat-image" className={labelCls}>Category Image <span className="text-danger">*</span></label>
+                <input
+                  id="cat-image"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      setFormData({ ...formData, imageFile: file, imagePreview: URL.createObjectURL(file) });
+                    }
+                  }}
+                  className="w-full text-sm text-muted file:mr-3 file:rounded-[8px] file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary hover:file:bg-primary/20"
+                />
+                {formErrors.image && <p className="mt-1 text-sm text-danger">{formErrors.image}</p>}
+                {formData.imagePreview && (
+                  <img src={formData.imagePreview} alt="Preview" className="mt-2 h-20 w-20 rounded-[10px] border border-border object-cover" />
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="cat-hsn" className={labelCls}>HSN Code</label>
+                <input
+                  id="cat-hsn"
+                  type="text"
+                  value={formData.hsn}
+                  onChange={(e) => setFormData({ ...formData, hsn: e.target.value })}
+                  className={inputCls}
+                  placeholder="e.g. 17049030"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
+                >
+                  {loading ? 'Saving…' : editingCategory ? 'Update Category' : 'Add Category'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="flex-1 rounded-[10px] border border-border bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface-raised"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

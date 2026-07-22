@@ -10,6 +10,7 @@ import {
   ReceiptPercentIcon,
   DocumentTextIcon,
   ShoppingCartIcon,
+  UsersIcon,
   CogIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -33,6 +34,7 @@ const NAV_GROUPS = [
     title: 'Sales',
     items: [
       { to: '/orders', label: 'Orders', icon: ShoppingCartIcon },
+      { to: '/customers', label: 'Customers', icon: UsersIcon },
       { to: '/discounts', label: 'Discounts', icon: ReceiptPercentIcon },
     ],
   },

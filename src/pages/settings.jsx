@@ -1,116 +1,128 @@
 //pages/settings.jsx
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchProfile, clearError } from "../redux/slices/authSlice";
+import { fetchProfile } from "../redux/slices/authSlice";
 import LogoutButton from "../components/LogoutButton";
+import { useTheme } from "../hooks/useTheme";
+import {
+  MoonIcon,
+  SunIcon,
+  ArrowRightStartOnRectangleIcon,
+} from "@heroicons/react/24/outline";
+
+import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
+import Skeleton from "../ui/skeleton";
+
+const Field = ({ label, value }) => (
+  <div>
+    <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
+    <p className="mt-1 text-sm font-medium text-ink">{value || "—"}</p>
+  </div>
+);
 
 const Settings = () => {
   const dispatch = useDispatch();
   const { user, isLoading, error } = useSelector((state) => state.auth);
+  const { theme, toggle } = useTheme();
 
   useEffect(() => {
-    // Fetch user profile when component mounts
     dispatch(fetchProfile());
   }, [dispatch]);
 
-  if (isLoading && !user) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
+  const formatDate = (d) =>
+    d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-3xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <LogoutButton className="bg-orange-500 text-white px-4 py-2 rounded  transition-colors" />
-        </div>
-
-        {/* Global Error Message */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Profile Information Display */}
-        <div className="bg-white p-6 shadow rounded-lg mb-6">
-          <h2 className="text-lg font-semibold mb-4">Profile Information</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                First Name
-              </label>
-              <div className="w-full px-3 py-2 border rounded bg-gray-50 text-gray-800 min-h-[38px] flex items-center">
-                {user?.firstName || "Not provided"}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Last Name
-              </label>
-              <div className="w-full px-3 py-2 border rounded bg-gray-50 text-gray-800 min-h-[38px] flex items-center">
-                {user?.lastName || "Not provided"}
-              </div>
-            </div>
-          </div>
-          
-          <div className="space-y-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Email
-              </label>
-              <div className="w-full px-3 py-2 border rounded bg-gray-50 text-gray-800 min-h-[38px] flex items-center">
-                {user?.email || "Not provided"}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Phone Number
-              </label>
-              <div className="w-full px-3 py-2 border rounded bg-gray-50 text-gray-800 min-h-[38px] flex items-center">
-                {user?.phoneNumber || "Not provided"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Account Information */}
-        <div className="bg-white p-6 shadow rounded-lg">
-          <h2 className="text-lg font-semibold mb-4">Account Information</h2>
-          
-          <div className="space-y-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Account Created
-              </label>
-              <div className="w-full px-3 py-2 border rounded bg-gray-50 text-gray-800 min-h-[38px] flex items-center">
-                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Not available"}
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">
-                Last Updated
-              </label>
-              <div className="w-full px-3 py-2 border rounded bg-gray-50 text-gray-800 min-h-[38px] flex items-center">
-                {user?.updatedAt ? new Date(user.updatedAt).toLocaleDateString() : "Not available"}
-              </div>
-            </div>
-          </div>
-          
-          <div className="border-t pt-4">
-            <p className="text-sm text-gray-600 mb-4">
-              To make changes to your profile information, please contact support.
-            </p>
-          </div>
-        </div>
+    <div className="mx-auto max-w-3xl space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="font-display text-2xl font-bold text-ink">Settings</h1>
+        <p className="mt-0.5 text-sm text-muted">Your admin profile and preferences</p>
       </div>
+
+      {error && (
+        <div className="rounded-[12px] border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          {String(error)}
+        </div>
+      )}
+
+      {/* Profile */}
+      <Card>
+        <CardContent>
+          {isLoading && !user ? (
+            <div className="space-y-3">
+              <Skeleton className="h-14 w-14 rounded-full" />
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xl font-semibold text-primary-fg">
+                  {(user?.firstName?.[0] || "A").toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="truncate font-display text-lg font-semibold text-ink">
+                    {[user?.firstName, user?.lastName].filter(Boolean).join(" ") || "Admin"}
+                  </h2>
+                  <p className="truncate text-sm text-muted">{user?.email}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+                <Field label="First Name" value={user?.firstName} />
+                <Field label="Last Name" value={user?.lastName} />
+                <Field label="Email" value={user?.email} />
+                <Field label="Phone Number" value={user?.phoneNumber} />
+                <Field label="Account Created" value={formatDate(user?.createdAt)} />
+                <Field label="Last Updated" value={formatDate(user?.updatedAt)} />
+              </div>
+
+              <p className="mt-6 border-t border-border pt-4 text-xs text-muted">
+                To change your profile information, please contact support.
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Appearance */}
+      <Card>
+        <CardHeader><CardTitle>Appearance</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-ink">Theme</p>
+              <p className="text-xs text-muted">Currently using {theme} mode</p>
+            </div>
+            <button
+              onClick={toggle}
+              className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-surface px-4 py-2 text-sm font-medium text-ink shadow-sm transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+            >
+              {theme === "dark" ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
+              Switch to {theme === "dark" ? "light" : "dark"} mode
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Session */}
+      <Card>
+        <CardHeader><CardTitle>Session</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-ink">Sign out</p>
+              <p className="text-xs text-muted">End your admin session on this device</p>
+            </div>
+            <LogoutButton className="inline-flex items-center gap-2 rounded-[10px] border border-danger/40 bg-surface px-4 py-2 text-sm font-medium !text-danger shadow-sm transition-colors hover:bg-danger-soft">
+              <ArrowRightStartOnRectangleIcon className="h-4 w-4" />
+              Logout
+            </LogoutButton>
+          </div>
+        </CardContent>
+      </Card>
+
     </div>
   );
 };

@@ -143,6 +143,12 @@ const ordersSlice = createSlice({
         if (orderIndex !== -1) {
           state.orders[orderIndex].status = status;
         }
+
+        // Keep the dashboard/orders-page full collection in sync too
+        const allIndex = state.allOrders.findIndex(order => order._id === orderId);
+        if (allIndex !== -1) {
+          state.allOrders[allIndex].status = status;
+        }
         
         // Update selected order if it's the same one
         if (state.selectedOrder && state.selectedOrder._id === orderId) {

@@ -12,6 +12,7 @@ import Categories from './pages/categories';
 import Discounts from './pages/discounts';
 import Blogs from './pages/blogs';
 import Orders from './pages/orders';
+import Customers from './pages/customers';
 import Login from './pages/Login';
 import Settings from './pages/settings';
 import AuthGuard from './components/AuthGuard';
@@ -122,13 +123,21 @@ const AppContent = () => {
                     </AuthGuard>
                   } 
                 />
-                <Route 
-                  path="/orders" 
+                <Route
+                  path="/orders"
                   element={
                     <AuthGuard>
                       <Orders />
                     </AuthGuard>
-                  } 
+                  }
+                />
+                <Route
+                  path="/customers"
+                  element={
+                    <AuthGuard>
+                      <Customers />
+                    </AuthGuard>
+                  }
                 />
                 <Route 
                   path="/settings" 
