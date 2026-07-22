@@ -5,6 +5,7 @@ import {
   SunIcon,
   MoonIcon,
   MagnifyingGlassIcon,
+  Bars3Icon,
 } from '@heroicons/react/24/outline';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
@@ -23,7 +24,7 @@ const LABELS = {
   settings: 'Settings',
 };
 
-const Topbar = () => {
+const Topbar = ({ onMenuClick = () => {} }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
@@ -73,23 +74,30 @@ const Topbar = () => {
   const displayEmail = user?.email || 'admin@daadi.com';
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-surface/80 px-6 backdrop-blur-md">
-      {/* Left: Breadcrumbs */}
-      <div className="flex items-center min-w-0">
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-border bg-surface/80 px-4 backdrop-blur-md sm:px-6">
+      {/* Left: mobile menu button + Breadcrumbs */}
+      <div className="flex items-center gap-2 min-w-0">
+        <button
+          onClick={onMenuClick}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] border border-border bg-surface text-muted transition-colors hover:bg-surface-raised hover:text-text lg:hidden"
+          aria-label="Open menu"
+        >
+          <Bars3Icon className="h-5 w-5" />
+        </button>
         <Breadcrumbs items={crumbs} />
       </div>
 
       {/* Right: Search + Theme Toggle + Profile Dropdown */}
-      <div className="flex items-center gap-3 shrink-0">
-        {/* Search Slot */}
-        <div className="relative">
+      <div className="flex items-center gap-2 shrink-0 sm:gap-3">
+        {/* Search Slot — hidden on small screens */}
+        <div className="relative hidden md:block">
           <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search…"
-            className="h-9 w-64 rounded-[12px] border border-border bg-surface pl-9 pr-3 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary transition-colors"
+            className="h-9 w-48 rounded-[12px] border border-border bg-surface pl-9 pr-3 text-sm text-text placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary transition-colors lg:w-64"
           />
         </div>
 
@@ -114,7 +122,7 @@ const Topbar = () => {
             className="flex items-center space-x-2 rounded-[12px] border border-border bg-surface px-3 py-2 text-text transition-colors hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50"
           >
             <UserCircleIcon className="h-6 w-6 text-muted" />
-            <div className="text-left">
+            <div className="hidden text-left sm:block">
               <div className="text-sm font-medium text-text">
                 {isLoading ? (
                   <div className="h-4 w-20 animate-pulse rounded bg-surface-raised" />

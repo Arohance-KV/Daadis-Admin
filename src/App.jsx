@@ -1,5 +1,5 @@
 //app.jsx
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { fetchProfile, logout } from './redux/slices/authSlice';
@@ -22,6 +22,7 @@ import './App.css';
 const AppContent = () => {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Add this useEffect to validate token on app load
   useEffect(() => {
@@ -62,17 +63,17 @@ const AppContent = () => {
   return (
     <div className="App">
       {isAuthenticated ? (
-        <div className="flex h-screen bg-bg">
-          {/* Sidebar Navigation */}
-          <Navbar />
-          
+        <div className="flex h-dvh bg-bg">
+          {/* Sidebar Navigation — static on desktop, slide-in drawer on mobile */}
+          <Navbar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+
           {/* Main Content Area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Top Navigation */}
-            <Topbar />
-            
+            <Topbar onMenuClick={() => setMobileNavOpen(true)} />
+
             {/* Page Content */}
-            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-bg p-6">
+            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-bg p-4 sm:p-6">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route 
