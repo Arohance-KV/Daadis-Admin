@@ -1,8 +1,14 @@
 const num = (v) => (typeof v === "number" && isFinite(v) ? v : Number(v) || 0);
 const day = (iso) => String(iso || "").slice(0, 10);
 
+// Revenue = money actually received. Only "captured" payments count; "created"
+// means checkout started but payment never completed, and "failed"/"refunded"
+// aren't revenue. COD isn't offered, so captured is the only paid state.
+export const isPaid = (o) => o?.paymentStatus === "captured";
+
 export function kpis(orders = [], products = []) {
-  const revenue = orders.reduce((s, o) => s + num(o.total), 0);
+  const paid = orders.filter(isPaid);
+  const revenue = paid.reduce((s, o) => s + num(o.total), 0);
   const totalOrders = orders.length;
   const pending = orders.filter((o) => o.status === "pending").length;
   const delivered = orders.filter((o) => o.status === "delivered").length;
@@ -10,8 +16,10 @@ export function kpis(orders = [], products = []) {
   const completed = orders.filter((o) => o.status === "shipped" || o.status === "delivered").length;
   const inStockUnits = products.reduce((s, p) => s + num(p.stock), 0);
   const outOfStock = products.filter((p) => num(p.stock) === 0).length;
-  const aov = totalOrders ? Math.round(revenue / totalOrders) : 0;
-  const packets = orders.reduce((s, o) => s + (o.items || []).reduce((q, it) => q + num(it.quantity), 0), 0);
+  // AOV over paid orders so it stays consistent with captured-only revenue.
+  const aov = paid.length ? Math.round(revenue / paid.length) : 0;
+  // Packets Sold = units from captured orders only (a real sales measure).
+  const packets = paid.reduce((s, o) => s + (o.items || []).reduce((q, it) => q + num(it.quantity), 0), 0);
   return { revenue, totalOrders, pending, delivered, completed, inStockUnits, outOfStock, aov, packets, totalProducts: products.length };
 }
 

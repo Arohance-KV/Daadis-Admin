@@ -61,11 +61,8 @@ const Login = () => {
               "radial-gradient(circle at 15% 15%, rgba(245,158,11,.35) 0, transparent 45%), radial-gradient(circle at 85% 80%, rgba(251,146,60,.25) 0, transparent 50%)",
           }}
         />
-        <div className="relative flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-[14px] bg-gradient-to-br from-primary to-accent font-display text-xl font-semibold">
-            D
-          </div>
-          <span className="font-display text-2xl font-semibold tracking-tight">Daadis</span>
+        <div className="relative flex items-center">
+          <img src="/logo.png" alt="Daadi's" className="h-16 w-auto" />
         </div>
         <div className="relative max-w-md">
           <h1 className="font-display text-4xl font-semibold leading-tight">
@@ -85,11 +82,8 @@ const Login = () => {
       <div className="flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-sm">
           {/* Compact brand mark for mobile */}
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="grid h-10 w-10 place-items-center rounded-[12px] bg-gradient-to-br from-primary to-accent font-display text-lg font-semibold text-white">
-              D
-            </div>
-            <span className="font-display text-xl font-semibold text-ink">Daadis</span>
+          <div className="mb-8 flex lg:hidden">
+            <img src="/logo.png" alt="Daadi's" className="h-12 w-auto" />
           </div>
 
           <h2 className="font-display text-3xl font-semibold text-ink">Welcome back</h2>

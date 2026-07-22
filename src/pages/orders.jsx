@@ -19,6 +19,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { cn } from '../lib/utils';
+import { isPaid } from '../lib/dashboardData';
 import { RANGE_OPTIONS_ALL, localISO, boundsFor, inRange, rangeLabel } from '../lib/dateRange';
 import RangeTabs from '../ui/range-tabs';
 import useLazyRows from '../hooks/useLazyRows';
@@ -123,9 +124,8 @@ const Orders = () => {
     pending: rangedOrders.filter((o) => o.status === 'pending').length,
     processing: rangedOrders.filter((o) => o.status === 'processing').length,
     completed: rangedOrders.filter(isCompleted).length,
-    revenue: rangedOrders
-      .filter((o) => !['cancelled', 'failed', 'returned'].includes(o.status))
-      .reduce((sum, o) => sum + (Number(o.total) || 0), 0),
+    // Revenue counts only captured payments — unpaid "created" orders don't count.
+    revenue: rangedOrders.filter(isPaid).reduce((sum, o) => sum + (Number(o.total) || 0), 0),
   }), [rangedOrders]);
 
   const chipCount = (chip) =>

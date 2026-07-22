@@ -46,6 +46,7 @@ import {
   statusBreakdown,
   topProducts,
   productPerformance,
+  isPaid,
 } from '../lib/dashboardData';
 import { useCountUp } from '../lib/useCountUp';
 import { RANGE_OPTIONS, localISO, boundsFor, prevOf, inRange, rangeLabel } from '../lib/dateRange';
@@ -198,23 +199,26 @@ const Dashboard = () => {
 
   // Independent KPI slices
   const rb = boundsFor(revRange);
-  const revenueNow = inRange(orders, rb).reduce((s, o) => s + (Number(o.total) || 0), 0);
-  const revenuePrev = inRange(orders, prevOf(rb)).reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const revenueNow = inRange(orders, rb).filter(isPaid).reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const revenuePrev = inRange(orders, prevOf(rb)).filter(isPaid).reduce((s, o) => s + (Number(o.total) || 0), 0);
   const ob = boundsFor(ordRange);
   const ordersNow = inRange(orders, ob).length;
   const ordersPrev = inRange(orders, prevOf(ob)).length;
 
   const inv = inventoryStatus(products);
-  const spike = fillSpikeDays(ordersSpike(filtered), gb.start, gb.end);
+  // Sales/revenue views count captured payments only; unpaid "created" orders
+  // aren't real sales. Status breakdown stays on all orders (it's fulfillment).
+  const paidFiltered = filtered.filter(isPaid);
+  const spike = fillSpikeDays(ordersSpike(paidFiltered), gb.start, gb.end);
   const statusData = statusBreakdown(filtered);
-  const topProdData = topProducts(filtered).filter((p) => p.sales > 0);
-  const skus = skuSales(filtered).slice(0, 8);
-  const custs = customers(filtered);
+  const topProdData = topProducts(paidFiltered).filter((p) => p.sales > 0);
+  const skus = skuSales(paidFiltered).slice(0, 8);
+  const custs = customers(paidFiltered);
   const latest = recentOrders(orders, 8);
 
-  // Product performance — whole catalogue, all-time (not range-scoped, so a
-  // slow product isn't mislabelled just because the current window is short).
-  const perf = productPerformance(orders, products);
+  // Product performance — whole catalogue, all-time paid sales (not range-scoped,
+  // so a slow product isn't mislabelled just because the current window is short).
+  const perf = productPerformance(orders.filter(isPaid), products);
   const bestSellers = perf.filter((p) => p.unitsSold > 0).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
   const underperformers = perf.filter((p) => p.unitsSold === 0).slice(0, 8);
 

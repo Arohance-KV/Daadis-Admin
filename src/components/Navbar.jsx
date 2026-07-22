@@ -70,10 +70,8 @@ const Navbar = () => {
       <div className="flex items-center justify-between border-b border-border p-3">
         {!collapsed && (
           <div className="flex items-center gap-2 px-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent">
-              <span className="text-sm font-bold text-primary-fg">D</span>
-            </div>
-            <span className="text-sm font-bold text-text">Daadi's Admin</span>
+            <img src="/logo.png" alt="Daadi's" className="h-9 w-auto" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Admin</span>
           </div>
         )}
         <button

@@ -228,6 +228,23 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
                     <td className="border border-gray-800 px-2 py-3">
                       <div className="font-semibold">{item.productName}</div>
                       <div className="text-gray-600">SKU: {item.productCode}</div>
+                      {(() => {
+                        // Show the quantity-discount offer that applied to this line
+                        const tiers = productInfo?.product?.quantityDiscounts;
+                        if (!tiers || tiers.length === 0) return null;
+                        const applied = [...tiers]
+                          .sort((a, b) => b.minQuantity - a.minQuantity)
+                          .find((d) => item.quantity >= d.minQuantity);
+                        if (!applied) return null;
+                        const off = applied.discountType === 'percentage'
+                          ? `${applied.discountValue}% Off`
+                          : `Rs. ${applied.discountValue} Off`;
+                        return (
+                          <div className="mt-1 text-xs font-medium text-green-700">
+                            Pack of {applied.minQuantity} ({off})
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="border border-gray-800 px-2 py-3 text-center">{item.quantity}</td>
                     <td className="border border-gray-800 px-2 py-3 text-center">{hsn}</td>
