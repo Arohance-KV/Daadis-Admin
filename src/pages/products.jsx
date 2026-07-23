@@ -1,14 +1,12 @@
 //pages/products.jsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
-  fetchProducts,
-  fetchProductsByCategory,
+  fetchAllProducts,
   createProduct,
   updateProduct,
   deleteProduct,
   clearError,
-  setPagination,
 } from "../redux/slices/productsSlice";
 import { fetchCategories } from "../redux/slices/categoriesSlice";
 import {
@@ -17,8 +15,6 @@ import {
   TrashIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   ExclamationTriangleIcon,
   PhotoIcon,
   ShoppingBagIcon,
@@ -26,10 +22,23 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { cn } from "../lib/utils";
+import useLazyRows from "../hooks/useLazyRows";
 import Badge from "../ui/badge";
 import { Card, CardContent } from "../ui/card";
 import Skeleton from "../ui/skeleton";
 import EmptyState from "../ui/empty-state";
+
+// Fresh, unfrozen clone of quantity-discount tiers. Objects pulled from the
+// Redux store are frozen by Immer; editing them in place silently fails, so
+// the form must always work on its own copies.
+const cloneDiscounts = (tiers) =>
+  Array.isArray(tiers) && tiers.length > 0
+    ? tiers.map((d) => ({
+        minQuantity: d.minQuantity,
+        discountType: d.discountType,
+        discountValue: d.discountValue,
+      }))
+    : [{ minQuantity: 1, discountType: "percentage", discountValue: 5 }];
 
 const inputCls =
   "w-full rounded-[10px] border border-border bg-surface px-3 py-2 text-sm text-ink shadow-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/50";
@@ -64,7 +73,13 @@ const EMPTY_FORM = {
 
 const Products = () => {
   const dispatch = useDispatch();
-  const { products, loading, error, pagination } = useSelector((state) => state.products);
+  // Whole catalog, filtered + lazily rendered on the client (like Orders/Customers).
+  const products = useSelector((state) => state.products.allProducts);
+  const listLoading = useSelector((state) => state.products.allLoading);
+  const listError = useSelector((state) => state.products.allError);
+  // Mutations (create/update/delete) still use the paginated slice's flags.
+  const saving = useSelector((state) => state.products.loading);
+  const error = useSelector((state) => state.products.error);
   const { categories } = useSelector((state) => state.categories);
 
   const [showModal, setShowModal] = useState(false);
@@ -89,29 +104,28 @@ const Products = () => {
   }, [location.state, navigate, location.pathname]);
 
   useEffect(() => {
-    dispatch(fetchProducts({ page: 1, limit: 12 }));
+    dispatch(fetchAllProducts());
     dispatch(fetchCategories());
   }, [dispatch]);
 
-  // Single source of truth for "what products to load right now", honoring the
-  // active category filter, search term, and current page. Used both by the
-  // effect below and after create/update/delete so mutations never reset the
-  // filtered view back to the full product list.
-  const refreshProducts = useCallback(() => {
-    const searchParams = { page: pagination.page, limit: pagination.limit };
-    if (searchTerm) searchParams.search = searchTerm;
-    if (filterCategory) searchParams.category = filterCategory;
+  // Client-side filtering: instant, no per-keystroke requests, no stale-page bugs.
+  const filteredProducts = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return products.filter((p) => {
+      const catId = p.category?._id || p.category;
+      if (filterCategory && catId !== filterCategory) return false;
+      if (!q) return true;
+      const catName = categories.find((c) => c._id === catId)?.name || "";
+      return (
+        (p.name || "").toLowerCase().includes(q) ||
+        (p.code || "").toLowerCase().includes(q) ||
+        catName.toLowerCase().includes(q) ||
+        (p.tags || []).some((t) => String(t).toLowerCase().includes(q))
+      );
+    });
+  }, [products, categories, searchTerm, filterCategory]);
 
-    if (filterCategory) {
-      dispatch(fetchProductsByCategory({ categoryId: filterCategory, params: searchParams }));
-    } else {
-      dispatch(fetchProducts(searchParams));
-    }
-  }, [dispatch, filterCategory, searchTerm, pagination.page, pagination.limit]);
-
-  useEffect(() => {
-    refreshProducts();
-  }, [refreshProducts]);
+  const { visible, sentinelRef, reset } = useLazyRows(filteredProducts.length, 12);
 
   const resetForm = () => {
     setFormData(EMPTY_FORM);
@@ -144,10 +158,7 @@ const Products = () => {
           b: product.dimensions?.b || "",
           h: product.dimensions?.h || "",
         },
-        quantityDiscounts:
-          product.quantityDiscounts?.length > 0
-            ? product.quantityDiscounts
-            : [{ minQuantity: 1, discountType: "percentage", discountValue: 5 }],
+        quantityDiscounts: cloneDiscounts(product.quantityDiscounts),
       });
     } else {
       setEditingProduct(null);
@@ -263,9 +274,7 @@ const Products = () => {
         await dispatch(createProduct(productData)).unwrap();
       }
       handleCloseModal();
-      // Refresh with the active filters so the edited/created product stays in
-      // the correct category view instead of falling back to all products.
-      refreshProducts();
+      dispatch(fetchAllProducts());
     } catch (error) {
       console.error("Form submission error:", error);
     }
@@ -275,20 +284,18 @@ const Products = () => {
     try {
       await dispatch(deleteProduct(productId)).unwrap();
       setDeleteConfirm(null);
-      refreshProducts();
+      dispatch(fetchAllProducts());
     } catch (error) {
       console.error("Delete error:", error);
     }
-  };
-
-  const handlePageChange = (page) => {
-    dispatch(setPagination({ page }));
   };
 
   const getCategoryName = (categoryId) => {
     const category = categories.find((cat) => cat._id === categoryId);
     return category ? category.name : "Unknown";
   };
+
+  const bannerError = error || listError;
 
   return (
     <div className="space-y-6">
@@ -297,7 +304,7 @@ const Products = () => {
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Products</h1>
           <p className="mt-0.5 text-sm text-muted">
-            {pagination.total ? `${pagination.total} products in catalog` : "Manage your catalog"}
+            {products.length ? `${products.length} products in catalog` : "Manage your catalog"}
           </p>
         </div>
         <button
@@ -310,16 +317,16 @@ const Products = () => {
       </div>
 
       {/* Error banner */}
-      {error && (
+      {bannerError && (
         <div className="rounded-[12px] border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
           <div className="flex items-start gap-2">
             <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" />
             <div className="flex-1">
               <p className="font-medium">
-                Error {error.status && `(${error.status})`}
+                Error {bannerError.status && `(${bannerError.status})`}
               </p>
-              <p className="mt-0.5">{error.message || "An unknown error occurred"}</p>
-              {error.details && (
+              <p className="mt-0.5">{bannerError.message || "An unknown error occurred"}</p>
+              {bannerError.details && (
                 <>
                   <button
                     onClick={() => setShowErrorDetails(!showErrorDetails)}
@@ -329,15 +336,17 @@ const Products = () => {
                   </button>
                   {showErrorDetails && (
                     <pre className="mt-2 overflow-auto rounded-[8px] bg-surface p-2 text-xs text-ink">
-                      {JSON.stringify(error.details, null, 2)}
+                      {JSON.stringify(bannerError.details, null, 2)}
                     </pre>
                   )}
                 </>
               )}
             </div>
-            <button onClick={() => dispatch(clearError())} aria-label="Dismiss error">
-              <XMarkIcon className="h-5 w-5" />
-            </button>
+            {error && (
+              <button onClick={() => dispatch(clearError())} aria-label="Dismiss error">
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -348,16 +357,16 @@ const Products = () => {
           <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <input
             type="search"
-            placeholder="Search products…"
+            placeholder="Search by name, code, category or tag…"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); reset(); }}
             className={cn(inputCls, "pl-9")}
           />
         </div>
         <div className="flex items-center gap-2">
           <select
             value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
+            onChange={(e) => { setFilterCategory(e.target.value); reset(); }}
             className={inputCls}
             aria-label="Filter by category"
           >
@@ -368,7 +377,7 @@ const Products = () => {
           </select>
           {(searchTerm || filterCategory) && (
             <button
-              onClick={() => { setSearchTerm(""); setFilterCategory(""); }}
+              onClick={() => { setSearchTerm(""); setFilterCategory(""); reset(); }}
               className="rounded-[8px] p-2 text-muted transition-colors hover:bg-surface-raised hover:text-ink"
               aria-label="Clear filters"
             >
@@ -379,11 +388,11 @@ const Products = () => {
       </div>
 
       {/* Grid */}
-      {loading ? (
+      {listLoading && products.length === 0 ? (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-80 rounded-[18px]" />)}
         </div>
-      ) : products.length === 0 ? (
+      ) : filteredProducts.length === 0 ? (
         <EmptyState
           title="No products found"
           message={searchTerm || filterCategory ? "Try different filters." : "Add your first product to get started."}
@@ -392,7 +401,7 @@ const Products = () => {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {products.map((product) => {
+            {filteredProducts.slice(0, visible).map((product) => {
               const stock = stockBadge(product.stock);
               return (
                 <Card key={product._id} className="overflow-hidden">
@@ -468,36 +477,12 @@ const Products = () => {
             })}
           </div>
 
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted">
-                Showing {(pagination.page - 1) * pagination.limit + 1}–
-                {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} products
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handlePageChange(pagination.page - 1)}
-                  disabled={pagination.page <= 1}
-                  className="rounded-[10px] border border-border bg-surface p-2 text-ink transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Previous page"
-                >
-                  <ChevronLeftIcon className="h-4 w-4" />
-                </button>
-                <span className="text-sm tabular-nums text-ink">
-                  Page {pagination.page} of {pagination.pages}
-                </span>
-                <button
-                  onClick={() => handlePageChange(pagination.page + 1)}
-                  disabled={pagination.page >= pagination.pages}
-                  className="rounded-[10px] border border-border bg-surface p-2 text-ink transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Next page"
-                >
-                  <ChevronRightIcon className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Lazy-load sentinel: reveals more cards as you scroll */}
+          <div ref={sentinelRef} />
+          <p className="text-center text-xs text-muted">
+            Showing {Math.min(visible, filteredProducts.length)} of {filteredProducts.length} products
+            {visible < filteredProducts.length && " — scroll for more"}
+          </p>
         </>
       )}
 
@@ -618,9 +603,13 @@ const Products = () => {
                           placeholder="e.g. 10"
                           value={discount.minQuantity}
                           onChange={(e) => {
-                            const newDiscounts = [...formData.quantityDiscounts];
-                            newDiscounts[index].minQuantity = parseInt(e.target.value) || 0;
-                            setFormData({ ...formData, quantityDiscounts: newDiscounts });
+                            const v = parseInt(e.target.value) || 0;
+                            setFormData((prev) => ({
+                              ...prev,
+                              quantityDiscounts: prev.quantityDiscounts.map((d, i) =>
+                                i === index ? { ...d, minQuantity: v } : d
+                              ),
+                            }));
                           }}
                           className={inputCls}
                           min="1"
@@ -631,9 +620,13 @@ const Products = () => {
                         <select
                           value={discount.discountType}
                           onChange={(e) => {
-                            const newDiscounts = [...formData.quantityDiscounts];
-                            newDiscounts[index].discountType = e.target.value;
-                            setFormData({ ...formData, quantityDiscounts: newDiscounts });
+                            const v = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              quantityDiscounts: prev.quantityDiscounts.map((d, i) =>
+                                i === index ? { ...d, discountType: v } : d
+                              ),
+                            }));
                           }}
                           className={inputCls}
                         >
@@ -650,9 +643,13 @@ const Products = () => {
                           placeholder={discount.discountType === "percentage" ? "e.g. 10" : "e.g. 100"}
                           value={discount.discountValue}
                           onChange={(e) => {
-                            const newDiscounts = [...formData.quantityDiscounts];
-                            newDiscounts[index].discountValue = parseFloat(e.target.value) || 0;
-                            setFormData({ ...formData, quantityDiscounts: newDiscounts });
+                            const v = parseFloat(e.target.value) || 0;
+                            setFormData((prev) => ({
+                              ...prev,
+                              quantityDiscounts: prev.quantityDiscounts.map((d, i) =>
+                                i === index ? { ...d, discountValue: v } : d
+                              ),
+                            }));
                           }}
                           className={inputCls}
                           min="0"
@@ -808,11 +805,11 @@ const Products = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={saving}
                   className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {loading && <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-fg border-t-transparent" />}
-                  {loading
+                  {saving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-fg border-t-transparent" />}
+                  {saving
                     ? editingProduct ? "Updating…" : "Creating…"
                     : editingProduct ? "Update Product" : "Create Product"}
                 </button>
@@ -840,10 +837,10 @@ const Products = () => {
                 </button>
                 <button
                   onClick={() => handleDelete(deleteConfirm._id)}
-                  disabled={loading}
+                  disabled={saving}
                   className="rounded-[10px] bg-danger px-4 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {loading ? "Deleting…" : "Delete"}
+                  {saving ? "Deleting…" : "Delete"}
                 </button>
               </div>
             </CardContent>
