@@ -445,7 +445,12 @@ export const productsAPI = {
       );
     }
 
-    // New images - append each file
+    // Final image order — tokens of existing URLs and '__NEW__' placeholders.
+    if (Array.isArray(productData.imageOrder)) {
+      formData.append("imageOrder", JSON.stringify(productData.imageOrder));
+    }
+
+    // New images - append each file (order matches the '__NEW__' tokens above)
     if (productData.images && Array.isArray(productData.images)) {
       productData.images.forEach((file) => {
         if (file instanceof File) {

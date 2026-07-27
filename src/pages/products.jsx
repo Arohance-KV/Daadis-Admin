@@ -1,5 +1,5 @@
 //pages/products.jsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
   fetchAllProducts,
@@ -15,6 +15,8 @@ import {
   TrashIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   ExclamationTriangleIcon,
   PhotoIcon,
   ShoppingBagIcon,
@@ -61,9 +63,8 @@ const EMPTY_FORM = {
   description: "",
   rating: "",
   ratingCount: "",
-  existingImages: [],
-  newImages: [],
-  imagesToDelete: [],
+  // Unified, ordered image list: { key, kind: 'existing'|'new', url? , file?, preview? }
+  imageItems: [],
   tags: [""],
   vegetarian: true,
   weight: { number: "", unit: "g" },
@@ -90,7 +91,7 @@ const Products = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const [formData, setFormData] = useState(EMPTY_FORM);
-  const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
+  const nextKey = useRef(0); // stable keys for newly-added image items
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -127,9 +128,13 @@ const Products = () => {
 
   const { visible, sentinelRef, reset } = useLazyRows(filteredProducts.length, 12);
 
+  // Free any object URLs held by new-image items to avoid leaks.
+  const revokePreviews = (items = []) =>
+    items.forEach((it) => it.kind === "new" && it.preview && URL.revokeObjectURL(it.preview));
+
   const resetForm = () => {
+    revokePreviews(formData.imageItems);
     setFormData(EMPTY_FORM);
-    setImagePreviewUrls([]);
   };
 
   const handleOpenModal = (product = null) => {
@@ -144,9 +149,7 @@ const Products = () => {
         description: product.description || "",
         rating: product.rating ?? "",
         ratingCount: product.ratingCount ?? "",
-        existingImages: product.images || [],
-        newImages: [],
-        imagesToDelete: [],
+        imageItems: (product.images || []).map((url) => ({ key: url, kind: "existing", url })),
         tags: product.tags?.length > 0 ? product.tags : [""],
         vegetarian: product.vegetarian !== undefined ? product.vegetarian : true,
         weight: {
@@ -197,81 +200,89 @@ const Products = () => {
   const removeTag = (index) =>
     setFormData((prev) => ({ ...prev, tags: prev.tags.filter((_, i) => i !== index) }));
 
-  const handleImageChange = (e) => {
-    const files = Array.from(e.target.files);
-    const newPreviewUrls = files.map((file) => URL.createObjectURL(file));
-    setFormData((prev) => ({ ...prev, newImages: [...prev.newImages, ...files] }));
-    setImagePreviewUrls((prev) => [...prev, ...newPreviewUrls]);
+  const handleAddImages = (e) => {
+    const files = Array.from(e.target.files || []);
+    const items = files.map((file) => ({
+      key: `new-${nextKey.current++}`,
+      kind: "new",
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+    setFormData((prev) => ({ ...prev, imageItems: [...prev.imageItems, ...items] }));
+    e.target.value = ""; // let the same file be re-picked later
   };
 
-  const removeExistingImage = (imageUrl, index) => {
-    setFormData((prev) => ({
-      ...prev,
-      existingImages: prev.existingImages.filter((_, i) => i !== index),
-      imagesToDelete: [...prev.imagesToDelete, imageUrl],
-    }));
+  // Swap an image with its neighbour (dir: -1 left / +1 right).
+  const moveImage = (index, dir) => {
+    setFormData((prev) => {
+      const target = index + dir;
+      if (target < 0 || target >= prev.imageItems.length) return prev;
+      const items = [...prev.imageItems];
+      [items[index], items[target]] = [items[target], items[index]];
+      return { ...prev, imageItems: items };
+    });
   };
 
-  const removeNewImage = (index) => {
-    URL.revokeObjectURL(imagePreviewUrls[index]);
-    setFormData((prev) => ({
-      ...prev,
-      newImages: prev.newImages.filter((_, i) => i !== index),
-    }));
-    setImagePreviewUrls((prev) => prev.filter((_, i) => i !== index));
+  const makeMain = (index) => {
+    setFormData((prev) => {
+      if (index === 0) return prev;
+      const items = [...prev.imageItems];
+      const [it] = items.splice(index, 1);
+      items.unshift(it);
+      return { ...prev, imageItems: items };
+    });
+  };
+
+  const removeImage = (index) => {
+    setFormData((prev) => {
+      const it = prev.imageItems[index];
+      if (it?.kind === "new" && it.preview) URL.revokeObjectURL(it.preview);
+      return { ...prev, imageItems: prev.imageItems.filter((_, i) => i !== index) };
+    });
   };
 
   const clearAllImages = () => {
-    imagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
-    setFormData((prev) => ({
-      ...prev,
-      newImages: [],
-      imagesToDelete: [...prev.imagesToDelete, ...prev.existingImages],
-      existingImages: [],
-    }));
-    setImagePreviewUrls([]);
+    setFormData((prev) => {
+      revokePreviews(prev.imageItems);
+      return { ...prev, imageItems: [] };
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const items = formData.imageItems;
+    const newFiles = items.filter((it) => it.kind === "new").map((it) => it.file);
+    const base = {
+      name: formData.name,
+      code: formData.code,
+      category: formData.category,
+      price: formData.price,
+      stock: formData.stock,
+      description: formData.description,
+      rating: formData.rating,
+      ratingCount: formData.ratingCount,
+      vegetarian: formData.vegetarian,
+      tags: formData.tags.filter((tag) => tag.trim() !== ""),
+      weight: formData.weight,
+      dimensions: formData.dimensions,
+      quantityDiscounts: formData.quantityDiscounts,
+    };
     try {
       if (editingProduct) {
-        const productData = {
-          name: formData.name,
-          code: formData.code,
-          category: formData.category,
-          price: formData.price,
-          stock: formData.stock,
-          description: formData.description,
-          rating: formData.rating,
-          ratingCount: formData.ratingCount,
-          vegetarian: formData.vegetarian,
-          tags: formData.tags.filter((tag) => tag.trim() !== ""),
-          weight: formData.weight,
-          dimensions: formData.dimensions,
-          existingImages: formData.existingImages,
-          quantityDiscounts: formData.quantityDiscounts,
-          images: formData.newImages,
-        };
-        await dispatch(updateProduct({ id: editingProduct._id, productData })).unwrap();
+        await dispatch(
+          updateProduct({
+            id: editingProduct._id,
+            productData: {
+              ...base,
+              existingImages: items.filter((it) => it.kind === "existing").map((it) => it.url),
+              // Final display order; '__NEW__' slots consume newFiles in order.
+              imageOrder: items.map((it) => (it.kind === "existing" ? it.url : "__NEW__")),
+              images: newFiles,
+            },
+          })
+        ).unwrap();
       } else {
-        const productData = {
-          name: formData.name,
-          code: formData.code,
-          category: formData.category,
-          price: formData.price,
-          stock: formData.stock,
-          description: formData.description,
-          rating: formData.rating,
-          ratingCount: formData.ratingCount,
-          vegetarian: formData.vegetarian,
-          imageFiles: formData.newImages,
-          weight: formData.weight,
-          dimensions: formData.dimensions,
-          tags: formData.tags.filter((tag) => tag.trim() !== ""),
-          quantityDiscounts: formData.quantityDiscounts,
-        };
-        await dispatch(createProduct(productData)).unwrap();
+        await dispatch(createProduct({ ...base, imageFiles: newFiles })).unwrap();
       }
       handleCloseModal();
       dispatch(fetchAllProducts());
@@ -720,12 +731,15 @@ const Products = () => {
               </div>
 
               {/* Images */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className={labelCls}>Product Images</span>
-                  {(formData.existingImages.length > 0 || formData.newImages.length > 0) && (
+                  <span className={labelCls}>
+                    Product Images
+                    <span className="ml-1 text-xs font-normal text-muted">(first image is the main one — reorder below)</span>
+                  </span>
+                  {formData.imageItems.length > 0 && (
                     <button type="button" onClick={clearAllImages} className="text-sm text-danger hover:underline">
-                      Clear All Images
+                      Clear all
                     </button>
                   )}
                 </div>
@@ -735,61 +749,84 @@ const Products = () => {
                     type="file"
                     multiple
                     accept="image/*"
-                    onChange={handleImageChange}
+                    onChange={handleAddImages}
                     className="w-full text-sm text-muted file:mr-3 file:rounded-[8px] file:border-0 file:bg-primary/10 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary hover:file:bg-primary/20"
                     aria-label="Upload product images"
                   />
-                  <p className="mt-1 text-xs text-muted">
-                    Multiple images allowed · first image is the main product image · JPG/PNG/WebP, up to 5MB each
-                  </p>
+                  <p className="mt-1 text-xs text-muted">JPG/PNG/WebP, up to 5MB each. Drag order with the arrows or “Set as main”.</p>
                 </div>
 
-                {editingProduct && formData.existingImages.length > 0 && (
-                  <div>
-                    <h4 className="mb-2 text-sm font-medium text-ink">Current Images</h4>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                      {formData.existingImages.map((imageUrl, index) => (
-                        <div key={`existing-${index}`} className="group relative">
-                          <div className="aspect-square overflow-hidden rounded-[10px] bg-surface-raised">
-                            <img src={imageUrl} alt={`Existing ${index + 1}`} className="h-full w-full object-cover" />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeExistingImage(imageUrl, index)}
-                            className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-danger text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
-                            aria-label={`Remove image ${index + 1}`}
-                          >
-                            ×
-                          </button>
+                {formData.imageItems.length > 0 && (
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                    {formData.imageItems.map((item, index) => (
+                      <div
+                        key={item.key}
+                        className={cn(
+                          "group relative overflow-hidden rounded-[12px] border bg-surface-raised",
+                          index === 0 ? "border-primary ring-2 ring-primary/40" : "border-border"
+                        )}
+                      >
+                        <div className="aspect-square">
+                          <img
+                            src={item.kind === "existing" ? item.url : item.preview}
+                            alt={`Image ${index + 1}`}
+                            className="h-full w-full object-cover"
+                          />
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {formData.newImages.length > 0 && (
-                  <div>
-                    <h4 className="mb-2 text-sm font-medium text-ink">New Images ({formData.newImages.length})</h4>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                      {formData.newImages.map((file, index) => (
-                        <div key={`new-${index}`} className="group relative">
-                          <div className="aspect-square overflow-hidden rounded-[10px] bg-surface-raised">
-                            <img src={imagePreviewUrls[index]} alt={`New ${index + 1}`} className="h-full w-full object-cover" />
-                          </div>
+                        {/* Main badge / new tag */}
+                        {index === 0 ? (
+                          <span className="absolute left-1.5 top-1.5 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-fg">
+                            Main
+                          </span>
+                        ) : (
                           <button
                             type="button"
-                            onClick={() => removeNewImage(index)}
-                            className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-danger text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
-                            aria-label={`Remove new image ${index + 1}`}
+                            onClick={() => makeMain(index)}
+                            className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
                           >
-                            ×
+                            Set as main
                           </button>
-                          <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-xs text-white">
-                            {(file.size / 1024 / 1024).toFixed(1)}MB
+                        )}
+                        {item.kind === "new" && (
+                          <span className="absolute bottom-1.5 left-1.5 rounded bg-success/80 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                            New
                           </span>
+                        )}
+
+                        {/* Remove */}
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-danger text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+                          aria-label={`Remove image ${index + 1}`}
+                        >
+                          ×
+                        </button>
+
+                        {/* Reorder controls */}
+                        <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => moveImage(index, -1)}
+                            disabled={index === 0}
+                            className="grid h-6 w-6 place-items-center rounded-md bg-white/90 text-ink disabled:opacity-30"
+                            aria-label={`Move image ${index + 1} left`}
+                          >
+                            <ChevronLeftIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveImage(index, 1)}
+                            disabled={index === formData.imageItems.length - 1}
+                            className="grid h-6 w-6 place-items-center rounded-md bg-white/90 text-ink disabled:opacity-30"
+                            aria-label={`Move image ${index + 1} right`}
+                          >
+                            <ChevronRightIcon className="h-4 w-4" />
+                          </button>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
