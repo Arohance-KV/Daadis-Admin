@@ -505,7 +505,13 @@ const Orders = () => {
               <h3 className="text-lg font-semibold text-gray-900">Invoice</h3>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    // Browser prints document.title as the header; show the storefront domain, not "Daadi's Admin".
+                    const prev = document.title;
+                    document.title = 'www.daadis.in';
+                    window.addEventListener('afterprint', () => { document.title = prev; }, { once: true });
+                    window.print();
+                  }}
                   className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90"
                 >
                   <PrinterIcon className="h-4 w-4" />

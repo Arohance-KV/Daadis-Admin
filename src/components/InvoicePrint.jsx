@@ -90,10 +90,10 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
             padding: 20px;
           }
 
-          /* Page setup */
+          /* Page setup — margin:0 makes Chrome drop its default header/footer (title, URL, date) */
           @page {
             size: A4;
-            margin: 10mm;
+            margin: 0;
           }
 
           /* Prevent page breaks inside these elements */
