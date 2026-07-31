@@ -96,9 +96,15 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
             margin: 0;
           }
 
-          /* Prevent page breaks inside these elements */
-          table, tr, td, th, .signature-section, .no-break {
+          /* Keep rows/sections intact, but let the long table flow across pages
+             (avoiding it on <table> forces the whole table onto one page -> huge gaps) */
+          tr, td, th, .signature-section, .no-break {
             page-break-inside: avoid;
+          }
+
+          /* Repeat the column headers at the top of each printed page */
+          thead {
+            display: table-header-group;
           }
 
           /* Ensure proper page breaks */
