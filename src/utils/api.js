@@ -654,6 +654,18 @@ export const blogsAPI = {
 };
 
 // ----------------- MANUFACTURER -----------------
+// Build a multipart body when an FSSAI image is attached; otherwise send FormData
+// with just the text fields (apiRequest drops Content-Type for FormData so the
+// backend's multer middleware parses it either way).
+const toManufacturerBody = (data) => {
+  const fd = new FormData();
+  ["code", "name", "address", "fssaiNumber"].forEach((k) => {
+    if (data[k] !== undefined && data[k] !== null) fd.append(k, data[k]);
+  });
+  if (data.fssaiImage instanceof File) fd.append("fssaiImage", data.fssaiImage);
+  return fd;
+};
+
 export const manufacturerAPI = {
   // Get all manufacturers
   getAllManufacturers: () => apiRequest("/manufacturer", { method: "GET" }),
@@ -662,18 +674,18 @@ export const manufacturerAPI = {
   getManufacturerById: (id) =>
     apiRequest(`/manufacturer/${id}`, { method: "GET" }),
 
-  // Create manufacturer
+  // Create manufacturer (multipart: optional FSSAI image)
   createManufacturer: (manufacturerData) =>
     apiRequest("/manufacturer", {
       method: "POST",
-      body: JSON.stringify(manufacturerData),
+      body: toManufacturerBody(manufacturerData),
     }),
 
-  // Update manufacturer
+  // Update manufacturer (multipart: optional FSSAI image)
   updateManufacturer: (id, manufacturerData) =>
     apiRequest(`/manufacturer/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(manufacturerData),
+      body: toManufacturerBody(manufacturerData),
     }),
 
   // Delete manufacturer

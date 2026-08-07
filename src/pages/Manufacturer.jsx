@@ -36,7 +36,8 @@ const Manufacturer = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingManufacturer, setEditingManufacturer] = useState(null);
-  const [formData, setFormData] = useState({ code: '', name: '', address: '' });
+  const [formData, setFormData] = useState({ code: '', name: '', address: '', fssaiNumber: '' });
+  const [fssaiFile, setFssaiFile] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -47,7 +48,8 @@ const Manufacturer = () => {
     if (success) {
       setIsModalOpen(false);
       setEditingManufacturer(null);
-      setFormData({ code: '', name: '', address: '' });
+      setFormData({ code: '', name: '', address: '', fssaiNumber: '' });
+      setFssaiFile(null);
       setTimeout(() => dispatch(clearSuccess()), 3000);
     }
   }, [success, dispatch]);
@@ -65,18 +67,21 @@ const Manufacturer = () => {
         code: manufacturer.code,
         name: manufacturer.name || '',
         address: manufacturer.address,
+        fssaiNumber: manufacturer.fssaiNumber || '',
       });
     } else {
       setEditingManufacturer(null);
-      setFormData({ code: '', name: '', address: '' });
+      setFormData({ code: '', name: '', address: '', fssaiNumber: '' });
     }
+    setFssaiFile(null);
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingManufacturer(null);
-    setFormData({ code: '', name: '', address: '' });
+    setFormData({ code: '', name: '', address: '', fssaiNumber: '' });
+    setFssaiFile(null);
     dispatch(clearCurrentManufacturer());
   };
 
@@ -89,10 +94,11 @@ const Manufacturer = () => {
     e.preventDefault();
     if (!formData.code.trim() || !formData.name.trim() || !formData.address.trim()) return;
 
+    const manufacturerData = { ...formData, fssaiImage: fssaiFile || undefined };
     if (editingManufacturer) {
-      await dispatch(updateManufacturer({ id: editingManufacturer._id, manufacturerData: formData }));
+      await dispatch(updateManufacturer({ id: editingManufacturer._id, manufacturerData }));
     } else {
-      await dispatch(createManufacturer(formData));
+      await dispatch(createManufacturer(manufacturerData));
     }
   };
 
@@ -272,6 +278,40 @@ const Manufacturer = () => {
                   className={inputCls}
                   placeholder="Enter manufacturer address"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="m-fssai" className={labelCls}>FSSAI License Number</label>
+                <input
+                  id="m-fssai"
+                  type="text"
+                  name="fssaiNumber"
+                  value={formData.fssaiNumber}
+                  onChange={handleInputChange}
+                  className={cn(inputCls, 'font-mono')}
+                  placeholder="e.g. 10012345678901"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="m-fssai-img" className={labelCls}>FSSAI License Image</label>
+                <input
+                  id="m-fssai-img"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFssaiFile(e.target.files?.[0] || null)}
+                  className={inputCls}
+                />
+                {editingManufacturer?.fssaiImageUrl && !fssaiFile && (
+                  <a
+                    href={editingManufacturer.fssaiImageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-block text-xs text-primary underline"
+                  >
+                    View current image
+                  </a>
+                )}
               </div>
 
               <div className="flex gap-3 pt-2">
