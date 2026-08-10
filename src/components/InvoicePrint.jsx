@@ -267,6 +267,18 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
         {/* Net Total */}
         <div className="text-right mb-8 no-break">
           <div className="inline-block">
+            {order.shippingCharge > 0 && (
+              <>
+                <div className="flex justify-between items-center gap-8 mb-1">
+                  <span>Subtotal</span>
+                  <span>Rs. {(order.total - order.shippingCharge).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center gap-8 mb-2 border-b border-gray-400 pb-2">
+                  <span>Shipping Charges</span>
+                  <span>Rs. {order.shippingCharge.toFixed(2)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between items-center gap-8 mb-2">
               <span className="font-bold">NET TOTAL (In Value)</span>
               <span className="font-bold">Rs. {order.total.toFixed(2)}</span>
