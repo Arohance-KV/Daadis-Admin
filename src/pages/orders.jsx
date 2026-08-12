@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchAllOrders, updateOrderStatus, fetchOrderById, clearError } from '../redux/slices/ordersSlice';
 import InvoicePrint from '../components/InvoicePrint';
+import { fetchInvoiceProductData } from '../utils/api';
 import {
   MagnifyingGlassIcon,
   EyeIcon,
@@ -73,6 +74,8 @@ const Orders = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
+  const [productsData, setProductsData] = useState({});
+  const [invoiceLoadingId, setInvoiceLoadingId] = useState(null);
 
   useEffect(() => {
     dispatch(fetchAllOrders());
@@ -105,13 +108,31 @@ const Orders = () => {
     }
   };
 
-  const handlePrintInvoice = async (orderId) => {
+  // Prefetch product/HSN details, then open the invoice — so the very first
+  // paint is complete (shipping + HSN all present, no pop-in).
+  const openInvoice = async (order) => {
+    setInvoiceLoadingId(order._id);
     try {
-      const result = await dispatch(fetchOrderById(orderId)).unwrap();
-      setSelectedOrder(result);
+      const pd = await fetchInvoiceProductData(order);
+      setProductsData(pd);
+      setSelectedOrder(order);
+      setShowOrderDetail(false);
       setShowInvoice(true);
     } catch (error) {
+      console.error('Failed to prepare invoice:', error);
+    } finally {
+      setInvoiceLoadingId(null);
+    }
+  };
+
+  const handlePrintInvoice = async (orderId) => {
+    setInvoiceLoadingId(orderId);
+    try {
+      const result = await dispatch(fetchOrderById(orderId)).unwrap();
+      await openInvoice(result);
+    } catch (error) {
       console.error('Failed to fetch order details:', error);
+      setInvoiceLoadingId(null);
     }
   };
 
@@ -304,11 +325,14 @@ const Orders = () => {
                             </button>
                             <button
                               onClick={() => handlePrintInvoice(order._id)}
-                              className="rounded-[8px] p-1.5 text-muted transition-colors hover:bg-primary/10 hover:text-primary"
+                              disabled={invoiceLoadingId === order._id}
+                              className="rounded-[8px] p-1.5 text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
                               title="Print invoice"
                               aria-label={`Print invoice for order ${order.orderNumber}`}
                             >
-                              <PrinterIcon className="h-5 w-5" />
+                              {invoiceLoadingId === order._id
+                                ? <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                                : <PrinterIcon className="h-5 w-5" />}
                             </button>
                           </div>
                         </td>
@@ -438,14 +462,14 @@ const Orders = () => {
                 <h4 className="mb-3 font-semibold text-ink">Summary</h4>
                 <div className="space-y-2 text-sm text-text">
                   <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{inr(selectedOrder.subtotal)}</span></div>
-                  <div className="flex justify-between"><span>Shipping</span><span className="tabular-nums">{inr(selectedOrder.shippingCharge)}</span></div>
-                  <div className="flex justify-between"><span>Tax</span><span className="tabular-nums">{inr(selectedOrder.taxAmount)}</span></div>
-                  {selectedOrder.appliedCoupon && (
+                  {selectedOrder.totalDiscountAmount > 0 && (
                     <div className="flex justify-between text-success">
-                      <span>Discount ({selectedOrder.appliedCoupon.code})</span>
-                      <span className="tabular-nums">-{inr(selectedOrder.appliedCoupon.discountAmount)}</span>
+                      <span>Discount{selectedOrder.appliedCoupon ? ` (${selectedOrder.appliedCoupon.code})` : ''}</span>
+                      <span className="tabular-nums">-{inr(selectedOrder.totalDiscountAmount)}</span>
                     </div>
                   )}
+                  <div className="flex justify-between"><span>Shipping</span><span className="tabular-nums">{inr(selectedOrder.shippingCharge)}</span></div>
+                  <div className="flex justify-between"><span>Tax</span><span className="tabular-nums">{inr(selectedOrder.taxAmount)}</span></div>
                   <div className="flex justify-between border-t border-border pt-2 text-base font-semibold text-ink">
                     <span>Total</span><span className="tabular-nums">{inr(selectedOrder.total)}</span>
                   </div>
@@ -478,11 +502,14 @@ const Orders = () => {
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => { setShowOrderDetail(false); setShowInvoice(true); }}
-                    className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90"
+                    onClick={() => openInvoice(selectedOrder)}
+                    disabled={invoiceLoadingId === selectedOrder._id}
+                    className="inline-flex items-center gap-2 rounded-[10px] bg-primary px-4 py-2 text-sm font-medium text-primary-fg shadow-sm transition-colors hover:opacity-90 disabled:opacity-50"
                   >
-                    <PrinterIcon className="h-4 w-4" />
-                    Print Invoice
+                    {invoiceLoadingId === selectedOrder._id
+                      ? <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                      : <PrinterIcon className="h-4 w-4" />}
+                    {invoiceLoadingId === selectedOrder._id ? 'Preparing…' : 'Print Invoice'}
                   </button>
                   <button
                     onClick={() => setShowOrderDetail(false)}
@@ -527,7 +554,7 @@ const Orders = () => {
               </div>
             </div>
             <div className="p-4">
-              <InvoicePrint order={selectedOrder} invoiceNumber={selectedOrder.orderNumber} />
+              <InvoicePrint order={selectedOrder} invoiceNumber={selectedOrder.orderNumber} productsData={productsData} />
             </div>
           </div>
         </div>

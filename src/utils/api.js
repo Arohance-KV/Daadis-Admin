@@ -694,3 +694,36 @@ export const manufacturerAPI = {
 };
 
 export default apiRequest;
+
+// Prefetch product + HSN details for every line item of an order, so the
+// invoice can be rendered only once everything is ready (no HSN pop-in).
+export const fetchInvoiceProductData = async (order) => {
+  const productDataMap = {};
+  if (!order?.items?.length) return productDataMap;
+
+  for (const item of order.items) {
+    const productId = item.product || item.productId;
+    if (!productId) continue;
+    try {
+      const response = await productsAPI.getProductById(productId);
+      const product = response.data;
+
+      let hsn = null;
+      const categoryId = product.category || product.categoryId;
+      if (categoryId) {
+        try {
+          const categoryResponse = await categoriesAPI.getCategoryById(categoryId);
+          hsn = categoryResponse.data?.hsn || categoryResponse.data?.HSN || categoryResponse.data?.hsnCode || null;
+        } catch (error) {
+          console.error("Could not fetch category:", error);
+        }
+      }
+
+      productDataMap[productId] = { hsn, product };
+    } catch (error) {
+      console.error(`Could not fetch product ${productId}:`, error);
+    }
+  }
+
+  return productDataMap;
+};

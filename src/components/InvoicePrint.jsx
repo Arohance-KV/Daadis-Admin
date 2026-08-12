@@ -1,63 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { productsAPI, categoriesAPI } from '../utils/api';
+import React from 'react';
 
-const InvoicePrint = ({ order, invoiceNumber }) => {
-  const [productsData, setProductsData] = useState({});
-
-  // Fetch product and category details for HSN codes
-  useEffect(() => {
-    const fetchProductDetails = async () => {
-      try {
-        const productDataMap = {};
-
-        // Fetch details for each product in the order
-        for (const item of order.items) {
-          const productId = item.product || item.productId;
-          if (productId) {
-            try {
-              const response = await productsAPI.getProductById(productId);
-              const product = response.data;
-              console.log('Product details:', product);
-
-              // Fetch category details for HSN code
-              let hsn = null;
-              const categoryId = product.category || product.categoryId;
-              console.log('Category ID:', categoryId);
-              if (categoryId) {
-                try {
-                  const categoryResponse = await categoriesAPI.getCategoryById(categoryId);
-                  console.log('Category details:', categoryResponse.data);
-                  // Try different possible field names for HSN
-                  hsn = categoryResponse.data?.hsn || categoryResponse.data?.HSN || categoryResponse.data?.hsnCode || null;
-                  console.log('HSN found:', hsn);
-                } catch (error) {
-                  console.error('Could not fetch category:', error);
-                }
-              } else {
-                console.log('No category ID found in product');
-              }
-
-              productDataMap[productId] = {
-                hsn: hsn,
-                product: product
-              };
-            } catch (error) {
-              console.error(`Could not fetch product ${productId}:`, error);
-            }
-          }
-        }
-
-        setProductsData(productDataMap);
-      } catch (error) {
-        console.error('Error fetching product details:', error);
-      }
-    };
-
-    if (order.items && order.items.length > 0) {
-      fetchProductDetails();
-    }
-  }, [order]);
-
+const InvoicePrint = ({ order, invoiceNumber, productsData = {} }) => {
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
       day: '2-digit',
@@ -267,18 +210,14 @@ const InvoicePrint = ({ order, invoiceNumber }) => {
         {/* Net Total */}
         <div className="text-right mb-8 no-break">
           <div className="inline-block">
-            {order.shippingCharge > 0 && (
-              <>
-                <div className="flex justify-between items-center gap-8 mb-1">
-                  <span>Subtotal</span>
-                  <span>Rs. {(order.total - order.shippingCharge).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center gap-8 mb-2 border-b border-gray-400 pb-2">
-                  <span>Shipping Charges</span>
-                  <span>Rs. {order.shippingCharge.toFixed(2)}</span>
-                </div>
-              </>
-            )}
+            <div className="flex justify-between items-center gap-8 mb-1">
+              <span>Subtotal</span>
+              <span>Rs. {(order.total - (order.shippingCharge || 0)).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center gap-8 mb-2 border-b border-gray-400 pb-2">
+              <span>Shipping Charges</span>
+              <span>Rs. {(order.shippingCharge || 0).toFixed(2)}</span>
+            </div>
             <div className="flex justify-between items-center gap-8 mb-2">
               <span className="font-bold">NET TOTAL (In Value)</span>
               <span className="font-bold">Rs. {order.total.toFixed(2)}</span>
