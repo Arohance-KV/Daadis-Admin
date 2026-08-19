@@ -17,6 +17,7 @@ import Login from './pages/Login';
 import Settings from './pages/settings';
 import AuthGuard from './components/AuthGuard';
 import Manufacturer from './pages/Manufacturer';
+import Banners from './pages/banners';
 import './App.css';
 
 const AppContent = () => {
@@ -116,13 +117,21 @@ const AppContent = () => {
                     </AuthGuard>
                   } 
                 />
-                <Route 
-                  path="/blogs" 
+                <Route
+                  path="/blogs"
                   element={
                     <AuthGuard>
                       <Blogs />
                     </AuthGuard>
-                  } 
+                  }
+                />
+                <Route
+                  path="/banners"
+                  element={
+                    <AuthGuard>
+                      <Banners />
+                    </AuthGuard>
+                  }
                 />
                 <Route
                   path="/orders"

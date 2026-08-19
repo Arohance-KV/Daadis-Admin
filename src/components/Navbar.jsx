@@ -11,6 +11,7 @@ import {
   DocumentTextIcon,
   ShoppingCartIcon,
   UsersIcon,
+  PhotoIcon,
   CogIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -41,7 +42,10 @@ const NAV_GROUPS = [
   },
   {
     title: 'Content',
-    items: [{ to: '/blogs', label: 'Blogs', icon: DocumentTextIcon }],
+    items: [
+      { to: '/blogs', label: 'Blogs', icon: DocumentTextIcon },
+      { to: '/banners', label: 'Banners', icon: PhotoIcon },
+    ],
   },
   {
     title: 'System',

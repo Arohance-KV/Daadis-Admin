@@ -693,6 +693,18 @@ export const manufacturerAPI = {
     apiRequest(`/manufacturer/${id}`, { method: "DELETE" }),
 };
 
+// ----------------- BANNERS -----------------
+export const bannersAPI = {
+  // Public: fetch banners of a given type. formData carries imageUrl (desktop)
+  // and/or bannerElementUrl (mobile) files; backend keeps existing images if a
+  // slot is omitted on update.
+  getByType: (bannerType) => apiRequest(`/banner/type/${bannerType}`),
+  create: (formData) =>
+    apiRequest("/banner/create", { method: "POST", body: formData }),
+  update: (bannerId, formData) =>
+    apiRequest(`/banner/update/${bannerId}`, { method: "PUT", body: formData }),
+};
+
 export default apiRequest;
 
 // Prefetch product + HSN details for every line item of an order, so the
